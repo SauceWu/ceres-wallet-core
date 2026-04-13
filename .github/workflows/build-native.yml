@@ -1,0 +1,103 @@
+name: Build Native Libraries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: build-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja protobuf cbindgen boost
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Build iOS
+        run: bash tool/build_native.sh ios
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-libs
+          path: |
+            dist/ios-arm64.tar.gz
+            dist/ios-xcframework.tar.gz
+          if-no-files-found: error
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build protobuf-compiler libboost-dev
+
+      - name: Prepare boost for cross-compile
+        run: |
+          # Link system boost headers to wallet-core's build/local so NDK cross-compile can find them
+          # without polluting the sysroot with all of /usr/include
+          mkdir -p third_party/wallet-core/build/local/include
+          ln -sf /usr/include/boost third_party/wallet-core/build/local/include/boost
+
+      - name: Install Rust nightly + cbindgen
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Install cbindgen
+        run: cargo install cbindgen
+
+      - name: Set Android NDK
+        run: |
+          ANDROID_NDK=$(ls -d $ANDROID_HOME/ndk/*/ | sort -V | tail -1)
+          echo "ANDROID_NDK=${ANDROID_NDK%/}" >> $GITHUB_ENV
+
+      - name: Build Android
+        run: bash tool/build_native.sh android
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-libs
+          path: dist/*.tar.gz
+
+  release:
+    needs: [build-ios, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+          generate_release_notes: true

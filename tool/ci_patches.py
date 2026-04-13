@@ -43,6 +43,7 @@ def main():
     step8_disable_tests(wc)
     step9_patch_cmake_flutter(wc)
     step10_trim_rust(wc)
+    step11_fix_ios_deployment_target(wc)
 
     print("\n=== CI Patches Complete ===")
 
@@ -548,6 +549,33 @@ pub fn evm_dispatcher(coin: CoinType) -> RegistryResult<EvmEntryExtStaticRef> {
         if src.exists() and not (fw_trimmed / name).exists():
             shutil.move(str(src), str(fw_trimmed / name))
             print(f"   Moved framework: {name}")
+
+
+def step11_fix_ios_deployment_target(wc: Path):
+    """Patch wallet-core's hardcoded CMAKE_OSX_DEPLOYMENT_TARGET from 10.15 to 13.0.
+
+    wallet-core sets 'CMAKE_OSX_DEPLOYMENT_TARGET "10.15" ... FORCE' which overrides
+    the value we pass on the cmake command line. 10.15 is a macOS version; when used
+    as an iOS deployment target the build fails because std::optional::value() and
+    other APIs require iOS 12.0+. Bumping to 13.0 matches our cmake invocation.
+    """
+    print(">>> Step 11: Fixing CMAKE_OSX_DEPLOYMENT_TARGET...")
+    cmake = wc / "CMakeLists.txt"
+    if not cmake.exists():
+        print("   WARNING: CMakeLists.txt not found")
+        return
+
+    content = cmake.read_text()
+    new_content = re.sub(
+        r'(set\s*\(\s*CMAKE_OSX_DEPLOYMENT_TARGET\s+")10\.15(")',
+        r'\g<1>13.0\g<2>',
+        content,
+    )
+    if new_content != content:
+        cmake.write_text(new_content)
+        print("   Patched: CMAKE_OSX_DEPLOYMENT_TARGET 10.15 -> 13.0")
+    else:
+        print("   Pattern not found or already patched")
 
 
 if __name__ == "__main__":

@@ -214,7 +214,8 @@ build_android() {
         cmake -S "$WC_DIR" -B "$WC_DIR/build/android-$ABI" -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="$ABI" -DANDROID_PLATFORM=android-21 \
-            -DFLUTTER=ON -DTW_UNITY_BUILD=ON -DTW_COMPILE_JAVA=OFF -DTW_COMPILE_KOTLIN=OFF
+            -DFLUTTER=ON -DTW_UNITY_BUILD=ON -DTW_COMPILE_JAVA=OFF -DTW_COMPILE_KOTLIN=OFF \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
         cmake --build "$WC_DIR/build/android-$ABI" --config Release -- TrustWalletCore
 
         JNILIBS="$PLUGIN_DIR/android/src/main/jniLibs/$ABI"

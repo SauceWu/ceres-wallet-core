@@ -1,0 +1,32 @@
+# Dart/Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+pubspec.lock
+
+# IDE
+*.iml
+.idea/
+.vscode/
+
+# Local dev configs
+.claude/
+.planning/
+.DS_Store
+
+# Native build artifacts (built locally, downloaded by hook for users)
+ios/Frameworks/
+ios/Libraries/
+android/src/main/jniLibs/
+
+# Build output archives
+dist/
+
+# OS
+*.DS_Store
+Thumbs.db
+
+# FVM
+.fvm/
+.fvmrc

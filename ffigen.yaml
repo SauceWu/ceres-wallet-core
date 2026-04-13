@@ -1,0 +1,38 @@
+output: 'lib/bindings/ceres_wallet_core_bindings.dart'
+headers:
+  entry-points:
+    - 'src/include/TrustCeresWalletCore/**.h'
+name: 'CeresWalletCore'
+description: 'Bindings to CeresWalletCore - Modular generation'
+silence-enum-warning: true
+
+# 模块化配置 - 通过注释来标记不同的功能模块
+# HD Wallet Module: TWHDWallet, TWMnemonic, TWDerivationPath
+# Crypto Module: TWPrivateKey, TWPublicKey, TWHash, TWAESPaddingMode, TWBase58, TWBase64
+# Address Module: TWAnyAddress, TWBitcoinAddress, TWEthereumAddress, TWSegwitAddress
+# Signer Module: TWAnySigner, TWTransactionCompiler, TWMessageSigner
+# Blockchain Module: TWCoinType, TWCurve, TWPurpose, TWStoredKey
+
+functions:
+  include:
+    - 'TW.*'
+structs:
+  include:
+    - 'TW.*'
+enums:
+  include:
+    - 'TW.*'
+typedefs:
+  include:
+    - 'TW.*'
+# 生成注释以便后续分离
+comments:
+  style: any
+  length: full
+# 格式化选项
+sort: true
+use-supported-typedefs: true
+compiler-opts:
+  - '-Wno-unknown-warning-option'
+  - '-Wno-availability'
+  - '-Wno-unknown-pragmas'

@@ -555,9 +555,9 @@ def step11_fix_ios_deployment_target(wc: Path):
     """Patch wallet-core's hardcoded CMAKE_OSX_DEPLOYMENT_TARGET from 10.15 to 13.0.
 
     wallet-core sets 'CMAKE_OSX_DEPLOYMENT_TARGET "10.15" ... FORCE' which overrides
-    the value we pass on the cmake command line. 10.15 is a macOS version; when used
-    as an iOS deployment target the build fails because std::optional::value() and
-    other APIs require iOS 12.0+. Bumping to 13.0 matches our cmake invocation.
+    the value we pass on the cmake command line. When building for iOS the value is
+    interpreted as iOS 10.15 (iOS 10.x), which doesn't have std::optional::value()
+    and other APIs that require iOS 12.0+. Bumping to 13.0 matches our cmake invocation.
     """
     print(">>> Step 11: Fixing CMAKE_OSX_DEPLOYMENT_TARGET...")
     cmake = wc / "CMakeLists.txt"

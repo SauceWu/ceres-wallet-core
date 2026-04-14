@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
 # ============================================================
 # Build Trust Wallet Core native libraries for ceres_wallet_core
@@ -90,11 +90,16 @@ echo ""
 build_ios() {
     echo ">>> Building iOS..."
 
+    FW_NAME="ceres_wallet_core"
+    FW_DIR="$PLUGIN_DIR/ios/Frameworks"
+    BUNDLE_ID="com.ceresecosystem.cereswalletcore"
+    FW_VERSION="1.0"
+
     # Build Rust for iOS
     echo "  Rust: aarch64-apple-ios"
-    (cd "$WC_DIR/rust" && cargo build --release --target aarch64-apple-ios 2>&1 | tail -1)
+    (cd "$WC_DIR/rust" && cargo build --release --target aarch64-apple-ios)
     echo "  Rust: aarch64-apple-ios-sim"
-    (cd "$WC_DIR/rust" && cargo build --release --target aarch64-apple-ios-sim 2>&1 | tail -1)
+    (cd "$WC_DIR/rust" && cargo build --release --target aarch64-apple-ios-sim)
 
     # Build C++ for simulator
     echo "  C++: iOS simulator (arm64)"
@@ -114,49 +119,99 @@ build_ios() {
         -DFLUTTER=ON -DTW_UNITY_BUILD=ON -DTW_COMPILE_JAVA=OFF -DTW_COMPILE_KOTLIN=OFF
     cmake --build "$WC_DIR/build/ios-device" --config Release -- TrustWalletCore protobuf TrezorCrypto
 
-    # Merge all static libs into one per platform
+    # Merge all static libs into one fat archive per platform
     echo "  Merging iOS sim libs..."
     libtool -static -o /tmp/libCeresWalletCore_sim.a \
         "$WC_DIR/build/ios-sim/libTrustWalletCore.a" \
         "$WC_DIR/build/ios-sim/libprotobuf.a" \
         "$WC_DIR/build/ios-sim/trezor-crypto/libTrezorCrypto.a" \
-        "$WC_DIR/rust/target/aarch64-apple-ios-sim/release/libwallet_core_rs.a" 2>/dev/null
+        "$WC_DIR/rust/target/aarch64-apple-ios-sim/release/libwallet_core_rs.a"
 
     echo "  Merging iOS device libs..."
     libtool -static -o /tmp/libCeresWalletCore_device.a \
         "$WC_DIR/build/ios-device/libTrustWalletCore.a" \
         "$WC_DIR/build/ios-device/libprotobuf.a" \
         "$WC_DIR/build/ios-device/trezor-crypto/libTrezorCrypto.a" \
-        "$WC_DIR/rust/target/aarch64-apple-ios/release/libwallet_core_rs.a" 2>/dev/null
+        "$WC_DIR/rust/target/aarch64-apple-ios/release/libwallet_core_rs.a"
 
-    # Convert static libs to dynamic frameworks (required by Flutter hook/DynamicLoadingBundled)
-    FW_NAME="ceres_wallet_core"
-    FW_DIR="$PLUGIN_DIR/ios/Frameworks"
+    # Write a minimal Info.plist for a framework slice
+    # Usage: _write_plist <path> <supported-platform>
+    _write_plist() {
+        cat > "$1" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>${FW_NAME}</string>
+    <key>CFBundleIdentifier</key>
+    <string>${BUNDLE_ID}</string>
+    <key>CFBundleName</key>
+    <string>${FW_NAME}</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>CFBundleShortVersionString</key>
+    <string>${FW_VERSION}</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>MinimumOSVersion</key>
+    <string>13.0</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>${2}</string>
+    </array>
+</dict>
+</plist>
+PLIST
+    }
 
-    echo "  Creating simulator .framework..."
-    mkdir -p "$FW_DIR/$FW_NAME.framework"
-    clang -dynamiclib -o "$FW_DIR/$FW_NAME.framework/$FW_NAME" \
-        -arch arm64 -isysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-        -mios-simulator-version-min=13.0 \
-        -Wl,-force_load,/tmp/libCeresWalletCore_sim.a \
-        -lc++ -lz -framework Security 2>&1 | tail -1
-
-    echo "  Creating device .framework..."
-    mkdir -p /tmp/fw_device
-    clang -dynamiclib -o /tmp/fw_device/$FW_NAME \
-        -arch arm64 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+    # Create device .framework (this is the primary artifact for the native assets hook)
+    echo "  Creating iOS device .framework..."
+    DEV_FW="$FW_DIR/$FW_NAME.framework"
+    rm -rf "$DEV_FW"
+    mkdir -p "$DEV_FW"
+    _write_plist "$DEV_FW/Info.plist" "iPhoneOS"
+    clang -dynamiclib \
+        -arch arm64 \
+        -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
         -mios-version-min=13.0 \
+        -install_name "@rpath/$FW_NAME.framework/$FW_NAME" \
         -Wl,-force_load,/tmp/libCeresWalletCore_device.a \
-        -lc++ -lz -framework Security 2>&1 | tail -1
+        -lc++ -lz -framework Security -framework Foundation \
+        -o "$DEV_FW/$FW_NAME"
 
+    # Create simulator .framework in a temp dir for XCFramework packaging
+    echo "  Creating iOS simulator .framework..."
+    SIM_FW="/tmp/${FW_NAME}_sim.framework"
+    rm -rf "$SIM_FW"
+    mkdir -p "$SIM_FW"
+    _write_plist "$SIM_FW/Info.plist" "iPhoneSimulator"
+    clang -dynamiclib \
+        -arch arm64 \
+        -isysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+        -mios-simulator-version-min=13.0 \
+        -install_name "@rpath/$FW_NAME.framework/$FW_NAME" \
+        -Wl,-force_load,/tmp/libCeresWalletCore_sim.a \
+        -lc++ -lz -framework Security -framework Foundation \
+        -o "$SIM_FW/$FW_NAME"
+
+    # Combine into XCFramework (device + simulator) for CocoaPods/podspec distribution
+    echo "  Creating XCFramework..."
+    XCF_DIR="$FW_DIR/$FW_NAME.xcframework"
+    rm -rf "$XCF_DIR"
+    xcodebuild -create-xcframework \
+        -framework "$DEV_FW" \
+        -framework "$SIM_FW" \
+        -output "$XCF_DIR"
+
+    # Cleanup temp files
     rm -f /tmp/libCeresWalletCore_*.a
+    rm -rf "$SIM_FW"
 
-    SIM_SIZE=$(du -h "$FW_DIR/$FW_NAME.framework/$FW_NAME" | cut -f1)
-    DEV_SIZE=$(du -h "/tmp/fw_device/$FW_NAME" | cut -f1)
-    echo "  Simulator framework: $SIM_SIZE"
-    echo "  Device framework: $DEV_SIZE"
-
-    rm -rf /tmp/fw_device
+    DEV_SIZE=$(du -h "$DEV_FW/$FW_NAME" | cut -f1)
+    XCF_SIZE=$(du -sh "$XCF_DIR" | cut -f1)
+    echo "  Device framework binary: $DEV_SIZE"
+    echo "  XCFramework total: $XCF_SIZE"
     echo ">>> iOS done"
 }
 
@@ -239,10 +294,20 @@ package() {
     DIST="$PLUGIN_DIR/dist"
     mkdir -p "$DIST"
 
-    # Package iOS .framework (matches hook download expectation: ios-arm64.tar.gz containing ceres_wallet_core.framework/)
-    if [ -d "$PLUGIN_DIR/ios/Frameworks/ceres_wallet_core.framework" ]; then
-        (cd "$PLUGIN_DIR/ios/Frameworks" && tar -czf "$DIST/ios-arm64.tar.gz" ceres_wallet_core.framework)
+    FW_NAME="ceres_wallet_core"
+    FW_DIR="$PLUGIN_DIR/ios/Frameworks"
+
+    # Package device .framework for native assets hook (hook/build.dart downloads ios-arm64.tar.gz
+    # and expects ceres_wallet_core.framework/ceres_wallet_core inside)
+    if [ -f "$FW_DIR/$FW_NAME.framework/$FW_NAME" ]; then
+        (cd "$FW_DIR" && tar -czf "$DIST/ios-arm64.tar.gz" "$FW_NAME.framework")
         echo "  ios-arm64.tar.gz: $(du -h "$DIST/ios-arm64.tar.gz" | cut -f1)"
+    fi
+
+    # Package XCFramework for CocoaPods / podspec distribution (device + simulator slices)
+    if [ -d "$FW_DIR/$FW_NAME.xcframework" ]; then
+        (cd "$FW_DIR" && tar -czf "$DIST/ios-xcframework.tar.gz" "$FW_NAME.xcframework")
+        echo "  ios-xcframework.tar.gz: $(du -h "$DIST/ios-xcframework.tar.gz" | cut -f1)"
     fi
 
     if [ -d "$PLUGIN_DIR/android/src/main/jniLibs" ]; then

@@ -35,7 +35,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-libs
-          path: dist/*.tar.gz
+          path: |
+            dist/ios-arm64.tar.gz
+            dist/ios-xcframework.tar.gz
 
   build-android:
     runs-on: ubuntu-latest

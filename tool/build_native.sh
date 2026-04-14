@@ -207,7 +207,7 @@ PLIST
 
     # Cleanup temp files
     rm -f /tmp/libCeresWalletCore_*.a
-    rm -rf "$SIM_FW"
+    rm -rf "$SIM_DIR"
 
     DEV_SIZE=$(du -h "$DEV_FW/$FW_NAME" | cut -f1)
     XCF_SIZE=$(du -sh "$XCF_DIR" | cut -f1)

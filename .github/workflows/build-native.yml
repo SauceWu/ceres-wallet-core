@@ -38,6 +38,7 @@ jobs:
           path: |
             dist/ios-arm64.tar.gz
             dist/ios-xcframework.tar.gz
+          if-no-files-found: error
 
   build-android:
     runs-on: ubuntu-latest

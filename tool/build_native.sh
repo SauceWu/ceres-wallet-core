@@ -297,18 +297,28 @@ package() {
 
     FW_NAME="ceres_wallet_core"
     FW_DIR="$PLUGIN_DIR/ios/Frameworks"
+    REQUIRE_IOS_ARTIFACTS=0
+    case "$TARGET" in
+        ios|all|package) REQUIRE_IOS_ARTIFACTS=1 ;;
+    esac
 
     # Package device .framework for native assets hook (hook/build.dart downloads ios-arm64.tar.gz
     # and expects ceres_wallet_core.framework/ceres_wallet_core inside)
     if [ -f "$FW_DIR/$FW_NAME.framework/$FW_NAME" ]; then
         (cd "$FW_DIR" && tar -czf "$DIST/ios-arm64.tar.gz" "$FW_NAME.framework")
         echo "  ios-arm64.tar.gz: $(du -h "$DIST/ios-arm64.tar.gz" | cut -f1)"
+    elif [ "$REQUIRE_IOS_ARTIFACTS" -eq 1 ]; then
+        echo "ERROR: Expected iOS framework binary not found: $FW_DIR/$FW_NAME.framework/$FW_NAME" >&2
+        exit 1
     fi
 
     # Package XCFramework for CocoaPods / podspec distribution (device + simulator slices)
     if [ -d "$FW_DIR/$FW_NAME.xcframework" ]; then
         (cd "$FW_DIR" && tar -czf "$DIST/ios-xcframework.tar.gz" "$FW_NAME.xcframework")
         echo "  ios-xcframework.tar.gz: $(du -h "$DIST/ios-xcframework.tar.gz" | cut -f1)"
+    elif [ "$REQUIRE_IOS_ARTIFACTS" -eq 1 ]; then
+        echo "ERROR: Expected iOS XCFramework not found: $FW_DIR/$FW_NAME.xcframework" >&2
+        exit 1
     fi
 
     if [ -d "$PLUGIN_DIR/android/src/main/jniLibs" ]; then

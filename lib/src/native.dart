@@ -8,20 +8,34 @@ const String _libName = 'ceres_wallet_core';
 
 final DynamicLibrary nativeLib = () {
   if (Platform.isIOS) {
-    // XCFramework embeds into Runner.app/Frameworks/ceres_wallet_core.framework
-    // Try multiple candidate paths for simulator/device compatibility
+    // Try multiple candidate paths — XCFramework may embed at different locations
     final candidates = <String>[
       'Frameworks/$_libName.framework/$_libName',
       '$_libName.framework/$_libName',
+      '@rpath/$_libName.framework/$_libName',
     ];
     for (final candidate in candidates) {
       try {
-        return DynamicLibrary.open(candidate);
+        final lib = DynamicLibrary.open(candidate);
+        // Verify the library actually has our symbols
+        lib.lookup('TWStringCreateWithUTF8Bytes');
+        return lib;
       } catch (_) {
         // try next
       }
     }
-    return DynamicLibrary.process();
+    // Last resort: symbols may be statically linked into the process
+    try {
+      final lib = DynamicLibrary.process();
+      lib.lookup('TWStringCreateWithUTF8Bytes');
+      return lib;
+    } catch (_) {
+      throw StateError(
+        'Failed to load ceres_wallet_core native library on iOS.\n'
+        'Ensure the .framework is built: bash tool/build_native.sh ios\n'
+        'Tried: ${candidates.join(", ")}',
+      );
+    }
   }
   if (Platform.isMacOS) {
     return DynamicLibrary.open('lib$_libName.dylib');

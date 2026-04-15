@@ -14,14 +14,14 @@ final DynamicLibrary nativeLib = () {
       '$_libName.framework/$_libName',
       '@rpath/$_libName.framework/$_libName',
     ];
+    final errors = <String>[];
     for (final candidate in candidates) {
       try {
         final lib = DynamicLibrary.open(candidate);
-        // Verify the library actually has our symbols
         lib.lookup('TWStringCreateWithUTF8Bytes');
         return lib;
-      } catch (_) {
-        // try next
+      } catch (e) {
+        errors.add('$candidate: $e');
       }
     }
     // Last resort: symbols may be statically linked into the process
@@ -29,11 +29,12 @@ final DynamicLibrary nativeLib = () {
       final lib = DynamicLibrary.process();
       lib.lookup('TWStringCreateWithUTF8Bytes');
       return lib;
-    } catch (_) {
+    } catch (e) {
+      errors.add('process(): $e');
       throw StateError(
         'Failed to load ceres_wallet_core native library on iOS.\n'
         'Ensure the .framework is built: bash tool/build_native.sh ios\n'
-        'Tried: ${candidates.join(", ")}',
+        'Errors:\n${errors.join("\n")}',
       );
     }
   }

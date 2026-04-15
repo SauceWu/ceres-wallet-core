@@ -33,8 +33,14 @@ Future<void> _build(BuildInput input, BuildOutputBuilder output) async {
       libFileName = 'lib$_libName.so';
       archiveFileName = 'android-$abi.tar.gz';
     case OS.iOS:
-      libFileName = '$_libName.framework/$_libName';
-      archiveFileName = 'ios-arm64.tar.gz';
+      // Download xcframework, then pick the right slice (device or simulator)
+      final iosSdk = codeConfig.iOS.targetSdk;
+      final isSimulator = iosSdk == IOSSdk.iPhoneSimulator;
+      final xcfSlice = isSimulator
+          ? '$_libName.xcframework/ios-arm64-simulator'
+          : '$_libName.xcframework/ios-arm64';
+      libFileName = '$xcfSlice/$_libName.framework/$_libName';
+      archiveFileName = 'ios-xcframework.tar.gz';
     case OS.macOS:
       libFileName = 'lib$_libName.dylib';
       archiveFileName = 'macos-${targetArch.toString()}.tar.gz';
@@ -141,6 +147,9 @@ File? _findLocalLib(
       final abi = _androidAbi(targetArch);
       candidates.add('$packageRoot/android/src/main/jniLibs/$abi/$libFileName');
     case OS.iOS:
+      // Try xcframework slices first, then standalone framework
+      candidates.add('$packageRoot/ios/Frameworks/$_libName.xcframework/ios-arm64-simulator/$_libName.framework/$_libName');
+      candidates.add('$packageRoot/ios/Frameworks/$_libName.xcframework/ios-arm64/$_libName.framework/$_libName');
       candidates.add('$packageRoot/ios/Frameworks/$_libName.framework/$_libName');
     case OS.macOS:
       candidates.add('$packageRoot/build/macos/$libFileName');

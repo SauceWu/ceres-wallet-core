@@ -1,0 +1,29 @@
+# Don't publish these to pub.dev
+
+# Submodule (native source — users get pre-built binaries via hook)
+third_party/
+
+# Build artifacts
+build/
+dist/
+ios/Frameworks/
+ios/Libraries/
+android/src/main/jniLibs/
+
+# Build tools (users don't need these)
+tool/
+
+# Local configs
+.claude/
+.planning/
+.vscode/
+.fvm/
+.fvmrc
+.github/
+
+# ffigen config
+ffigen.yaml
+
+# OS files
+*.DS_Store
+Thumbs.db

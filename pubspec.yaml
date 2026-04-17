@@ -1,6 +1,6 @@
 name: ceres_wallet_core
 description: "Dart FFI bindings for Trust Wallet Core — ETH, SOL, SUI, TRX and 27+ EVM L2 chains."
-version: 0.1.0
+version: 0.1.1
 homepage: https://github.com/SauceWu/ceres-wallet-core
 repository: https://github.com/SauceWu/ceres-wallet-core
 issue_tracker: https://github.com/SauceWu/ceres-wallet-core/issues

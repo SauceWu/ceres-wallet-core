@@ -58,15 +58,182 @@ wallet.delete();
 
 ## API 参考
 
+### 钱包与密钥
 | 类 | 说明 |
 |---|------|
-| `TWHDWallet` | HD 钱包创建、导入、密钥派生 |
-| `TWPrivateKey` | 私钥操作、签名 |
-| `TWPublicKey` | 公钥操作、验证 |
-| `TWAnyAddress` | 地址创建、验证 |
-| `TWAnySigner` | 交易签名（protobuf 和 JSON） |
-| `TWMnemonic` | BIP39 助记词验证 |
-| `TWCoinType` | 链配置、派生路径 |
+| `TWHDWallet` | BIP39 钱包，密钥派生，扩展密钥（xprv/xpub），主密钥 |
+| `TWPrivateKey` | sign / signAsDER / signZilliqaSchnorr，多曲线公钥派生 |
+| `TWPublicKey` | verify、**recover（从签名恢复公钥）**、verifyAsDER、verifyZilliqaSchnorr |
+| `TWAnyAddress` | 地址解析与构造（Bech32 / SS58 / Filecoin / Firo 变体） |
+| `TWMnemonic` | BIP39 助记词校验与单词建议 |
+| `TWCoinType` 扩展 | chainId、slip44、decimals、hrp、ss58Prefix、xprv/xpubVersion、accountURL/transactionURL |
+
+### 交易签名
+| 类 | 说明 |
+|---|------|
+| `TWAnySigner` | 交易签名（protobuf & JSON）— **仅交易，不要用于消息** |
+| `TWTransactionCompiler` | preImageHashes + compileWithSignatures（硬件钱包 / MPC 流程） |
+| `TWTransactionDecoder` | 反解链特定的原始交易 |
+| `TWTransactionUtil` | calcTxHash 用于显示交易哈希 |
+| `TWWalletConnectRequest` | 解析 WalletConnect 请求 → SigningInput |
+
+### 链下消息签名
+| 类 | 说明 |
+|---|------|
+| `TWMessageSigner` | proto 多链调度器（`MessageSigningInput`） |
+| `TWEthereumMessageSigner` | personal_sign / EIP-155 / EIP-712 typed data / verify |
+| `TWBitcoinMessageSigner` | `signmessage` / `verifymessage`（Base64） |
+| `TWTronMessageSigner` | TIP-191 |
+| `TWTONMessageSigner` | TON 消息签名 |
+| `TWTezosMessageSigner` | Taquito format / payload / sign / verify |
+| `TWStarkExMessageSigner` | dYdX、Immutable X（StarkNet 风格） |
+
+### Solidity ABI 编解码
+| 类 | 说明 |
+|---|------|
+| `TWEthereumAbi` | encode / decodeOutput / decodeCall / encodeFunction / encodeTyped（EIP-712） |
+| `TWEthereumAbiFunction` | ABI 函数构建器（uint/int/array/string/bool/bytes 全套 add/get） |
+| `TWEthereumAbiValue` | 原子值编解码（encodeAddress / decodeUInt256 / decodeArray …） |
+
+### Ethereum 小工具 & 账户抽象
+| 类 | 说明 |
+|---|------|
+| `TWEthereumAddress` | EIP-55 校验和地址 |
+| `TWEthereumRlp` | RLP 编码（自拼 EVM 交易时用） |
+| `TWEthereumEip1014` | CREATE2 确定性地址 |
+| `TWEthereumEip1967` | 代理 init code |
+| `TWEthereumEip2645` | StarkEx HD 路径派生 |
+| `TWStarkWare` | 由以太坊签名派生 StarkNet stark key |
+| `TWBarz` | ERC-4337 智能账户工具（counterfactual 地址、init code、签名格式化等） |
+
+### Solana
+| 类 | 说明 |
+|---|------|
+| `TWSolanaAddress` | Solana 地址解析 + SPL `defaultTokenAddress`（ATA）+ `token2022Address` |
+| `TWSolanaTransaction` | compute unit 上限/单价、fee payer 替换、指令插入、`updateBlockhashAndSign` 用最新 blockhash 重签 |
+
+### 派生路径
+| 类 | 说明 |
+|---|------|
+| `TWDerivationPath` | 类型化 BIP44 路径（解析、构造、各分量 getter） |
+| `TWDerivationPathIndex` | 单段路径组件（value + hardened） |
+
+### 加密工具
+| 类 | 说明 |
+|---|------|
+| `TWHash` | Keccak / SHA / RIPEMD / Blake2b / Groestl 全家桶 |
+| `TWBase32` `TWBase58` `TWBase64` `TWBech32` | 编/解码（含 Base58Check、Base64-URL、Bech32M 变体） |
+| `TWAES` | AES-CBC / AES-CTR 加解密 |
+| `TWPBKDF2` | HmacSha256 / HmacSha512 |
+| `TWCryptoBox` | NaCl `crypto_box_easy`（X25519 + XSalsa20-Poly1305）— 双方端到端加密 |
+
+### 加密 Keystore
+| 类 | 说明 |
+|---|------|
+| `TWStoredKey` | Ethereum keystore v3 JSON 格式，scrypt + AES，多链账户缓存 |
+| `TWAccount` | `TWStoredKey` 返回的单链账户记录（地址、coin、派生路径、公钥、xpub） |
+| `TWKeystoreStorage` | 移动端默认路径解析（iOS Application Support / Android filesDir）+ load/store/list/import/export 工具 |
+
+### WebAuthn / Passkey
+| 类 | 说明 |
+|---|------|
+| `TWWebAuthn` | 从 `attestationObject` 抽 P-256 公钥；用 `authenticatorData` + `clientDataJSON` 重建签名原文；从 ASN.1 签名中拆出 `r ‖ s`。配 `TWBarz` 做 ERC-4337 passkey 智能账户。 |
+
+### Passkey 钱包流程
+
+```dart
+// 1. 注册：把 WebAuthn attestation 转成 P-256 公钥
+final pub = TWWebAuthn.getPublicKey(attestationObject);
+final pubKeyBytes = pub!.data; // 这个 + credential id 存起来
+
+// 2. 签名请求：用户人脸/指纹通过，拿到 assertion
+//    response.signature / response.authenticatorData / response.clientDataJSON
+
+// 3. 链下验证：重建签名原文 + 拆 r||s
+final message = TWWebAuthn.reconstructOriginalMessage(
+  authenticatorData,
+  clientDataJSON,
+);
+final rs = TWWebAuthn.getRSValues(derSignature);
+final ok = TWPublicKey(pubKeyBytes, TWPublicKeyType.TWPublicKeyTypeNIST256p1)
+    .verify(rs, message);
+
+// 4. 链上验证：把 `rs` + `message` + `pubKeyBytes` 喂给
+//    ERC-4337 验证器（Barz / EIP-7212 P-256 预编译合约等）
+```
+
+### iOS / Android 上的加密 Keystore
+
+`TWStoredKey` 的 JSON 是 Trust Wallet、MEW、MetaMask 都在用的钱包备份格式。`TWKeystoreStorage` 帮你处理移动端的路径差异：
+
+```dart
+import 'package:ceres_wallet_core/ceres_wallet_core.dart';
+
+// 1. 创建新的 HD 助记词 keystore
+final pwd = TWKeystoreStorage.passwordToBytes('用户输入的密码');
+final key = TWStoredKey.create('我的钱包', pwd);
+
+// 2. 落盘到平台默认位置
+//    iOS:     <App>/Library/Application Support/keystores/my_wallet.json
+//    Android: <App>/files/keystores/my_wallet.json
+await TWKeystoreStorage.store(key, 'my_wallet');
+
+// 3. 之后再打开
+final loaded = await TWKeystoreStorage.load('my_wallet');
+final mnemonic = loaded!.decryptMnemonic(pwd);
+
+// 4. 在 keystore 里缓存各链地址
+final wallet = loaded.wallet(pwd);
+final ethAccount = loaded.accountForCoin(TWCoinType.TWCoinTypeEthereum, wallet);
+print(ethAccount?.address);
+
+// 5. 导入其他钱包导出的 keystore JSON
+final json = await someExternalSource();
+final imported = await TWKeystoreStorage.importAndStore(json, 'imported');
+```
+
+**密码存哪：**
+- keystore JSON **没有密码就完全无用**。**不要**把密码塞进 JSON、SharedPreferences 或 NSUserDefaults。
+- 用平台安全存储，常见用 `flutter_secure_storage`：
+  - **iOS：** Keychain Services（推荐 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`）
+  - **Android：** EncryptedSharedPreferences / Android Keystore
+
+**iOS iCloud 备份：** `Application Support` 默认会同步到 iCloud / iTunes 备份。如果不想 keystore 上云：通过原生 Swift 给 URL 设置 `URLResourceValues.isExcludedFromBackup = true`，或改用 `getApplicationCacheDirectory()`（系统可能清理）。
+
+**Android 备份：** `getFilesDir` 默认会进 adb backup，除非 manifest 设 `android:allowBackup="false"`。
+
+### 链下消息签名（修复 `0x` 空签名的关键）
+
+`TWAnySigner.sign` **只处理交易**——把 `MessageSigningInput` proto 喂给它会
+静默返回空字节（`personal_sign` 出 `0x` 的常见原因）。请改用专用 message signer：
+
+```dart
+import 'package:ceres_wallet_core/ceres_wallet_core.dart';
+
+// EIP-191 personal_sign，带 EIP-155 重放保护
+final sig = TWEthereumMessageSigner.signMessageEip155(privateKey, msg, chainId);
+
+// EIP-712 v4 typed data
+final typedSig = TWEthereumMessageSigner.signTypedMessageEip155(
+  privateKey, jsonEncodedTypedData, chainId,
+);
+
+// 通用 proto 通路（多链）：
+import 'package:ceres_wallet_core/proto/Ethereum.pb.dart' as Ethereum;
+import 'package:fixnum/fixnum.dart';
+
+final input = Ethereum.MessageSigningInput(
+  privateKey: privateKey.data,
+  message: 'Hello',
+  chainId: Ethereum.MaybeChainId(chainId: Int64(1)),
+  messageType: Ethereum.MessageType.MessageType_eip155,
+);
+final outBytes = TWMessageSigner.sign(
+  TWCoinType.TWCoinTypeEthereum,
+  input.writeToBuffer(),
+);
+final out = Ethereum.MessageSigningOutput.fromBuffer(outBytes);
+```
 
 ### Protobuf 模型
 

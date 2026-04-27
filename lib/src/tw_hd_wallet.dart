@@ -5,6 +5,7 @@ import 'native.dart';
 import 'tw_string_helper.dart';
 import 'tw_data_helper.dart';
 import 'tw_private_key.dart';
+import 'tw_public_key.dart';
 
 final _finalizer = Finalizer<Pointer<raw.TWHDWallet>>((ptr) {
   lib.TWHDWalletDelete(ptr);
@@ -39,6 +40,30 @@ class TWHDWallet {
     final twPass = toTWString(passphrase);
     try {
       final ptr = lib.TWHDWalletCreateWithMnemonic(twMnemonic, twPass);
+      if (ptr == nullptr) throw ArgumentError('Invalid mnemonic');
+      return TWHDWallet._wrap(ptr);
+    } finally {
+      deleteTWString(twMnemonic);
+      deleteTWString(twPass);
+    }
+  }
+
+  /// Import wallet from mnemonic, optionally skipping the BIP39 checksum
+  /// check. Set [check] to false only when consuming third-party mnemonics
+  /// that intentionally violate the spec.
+  factory TWHDWallet.createWithMnemonicCheck(
+    String mnemonic, {
+    String passphrase = '',
+    bool check = true,
+  }) {
+    final twMnemonic = toTWString(mnemonic);
+    final twPass = toTWString(passphrase);
+    try {
+      final ptr = lib.TWHDWalletCreateWithMnemonicCheck(
+        twMnemonic,
+        twPass,
+        check,
+      );
       if (ptr == nullptr) throw ArgumentError('Invalid mnemonic');
       return TWHDWallet._wrap(ptr);
     } finally {
@@ -99,6 +124,158 @@ class TWHDWallet {
   TWPrivateKey getKeyDerivation(raw.TWCoinType coin, raw.TWDerivation derivation) {
     final ptr = lib.TWHDWalletGetKeyDerivation(_ptr!, coin, derivation);
     return TWPrivateKey.fromPointer(ptr);
+  }
+
+  /// Get the master private key for a curve.
+  TWPrivateKey getMasterKey(raw.TWCurve curve) {
+    final ptr = lib.TWHDWalletGetMasterKey(_ptr!, curve);
+    return TWPrivateKey.fromPointer(ptr);
+  }
+
+  /// Get a private key by curve at an arbitrary [derivationPath]. Lets you
+  /// derive keys for chains TWCoinType doesn't model directly.
+  TWPrivateKey getKeyByCurve(raw.TWCurve curve, String derivationPath) {
+    final twPath = toTWString(derivationPath);
+    try {
+      final ptr = lib.TWHDWalletGetKeyByCurve(_ptr!, curve, twPath);
+      return TWPrivateKey.fromPointer(ptr);
+    } finally {
+      deleteTWString(twPath);
+    }
+  }
+
+  /// Get the BIP44 derived key at `m/purpose'/coin'/account'/change/address`.
+  TWPrivateKey getDerivedKey(
+    raw.TWCoinType coin,
+    int account,
+    int change,
+    int address,
+  ) {
+    final ptr = lib.TWHDWalletGetDerivedKey(
+      _ptr!,
+      coin,
+      account,
+      change,
+      address,
+    );
+    return TWPrivateKey.fromPointer(ptr);
+  }
+
+  /// Get the BIP32 extended private key (xprv/yprv/zprv depending on version).
+  String getExtendedPrivateKey(
+    raw.TWPurpose purpose,
+    raw.TWCoinType coin,
+    raw.TWHDVersion version,
+  ) {
+    return fromTWString(
+      lib.TWHDWalletGetExtendedPrivateKey(_ptr!, purpose, coin, version),
+    );
+  }
+
+  /// Get the BIP32 extended private key for a specific account index.
+  String getExtendedPrivateKeyAccount(
+    raw.TWPurpose purpose,
+    raw.TWCoinType coin,
+    raw.TWDerivation derivation,
+    raw.TWHDVersion version,
+    int account,
+  ) {
+    return fromTWString(
+      lib.TWHDWalletGetExtendedPrivateKeyAccount(
+        _ptr!,
+        purpose,
+        coin,
+        derivation,
+        version,
+        account,
+      ),
+    );
+  }
+
+  /// Get the BIP32 extended private key for a specific derivation flavour.
+  String getExtendedPrivateKeyDerivation(
+    raw.TWPurpose purpose,
+    raw.TWCoinType coin,
+    raw.TWDerivation derivation,
+    raw.TWHDVersion version,
+  ) {
+    return fromTWString(
+      lib.TWHDWalletGetExtendedPrivateKeyDerivation(
+        _ptr!,
+        purpose,
+        coin,
+        derivation,
+        version,
+      ),
+    );
+  }
+
+  /// Get the BIP32 extended public key (xpub/ypub/zpub).
+  String getExtendedPublicKey(
+    raw.TWPurpose purpose,
+    raw.TWCoinType coin,
+    raw.TWHDVersion version,
+  ) {
+    return fromTWString(
+      lib.TWHDWalletGetExtendedPublicKey(_ptr!, purpose, coin, version),
+    );
+  }
+
+  /// Get the BIP32 extended public key for a specific account index.
+  String getExtendedPublicKeyAccount(
+    raw.TWPurpose purpose,
+    raw.TWCoinType coin,
+    raw.TWDerivation derivation,
+    raw.TWHDVersion version,
+    int account,
+  ) {
+    return fromTWString(
+      lib.TWHDWalletGetExtendedPublicKeyAccount(
+        _ptr!,
+        purpose,
+        coin,
+        derivation,
+        version,
+        account,
+      ),
+    );
+  }
+
+  /// Get the BIP32 extended public key for a specific derivation flavour.
+  String getExtendedPublicKeyDerivation(
+    raw.TWPurpose purpose,
+    raw.TWCoinType coin,
+    raw.TWDerivation derivation,
+    raw.TWHDVersion version,
+  ) {
+    return fromTWString(
+      lib.TWHDWalletGetExtendedPublicKeyDerivation(
+        _ptr!,
+        purpose,
+        coin,
+        derivation,
+        version,
+      ),
+    );
+  }
+
+  /// Derive a public key from a published [extendedKey] (xpub etc.) at
+  /// [derivationPath]. Static — doesn't need a wallet instance.
+  static TWPublicKey? getPublicKeyFromExtended(
+    String extendedKey,
+    raw.TWCoinType coin,
+    String derivationPath,
+  ) {
+    final twExt = toTWString(extendedKey);
+    final twPath = toTWString(derivationPath);
+    try {
+      final ptr = lib.TWHDWalletGetPublicKeyFromExtended(twExt, coin, twPath);
+      if (ptr == nullptr) return null;
+      return TWPublicKey.fromPointer(ptr);
+    } finally {
+      deleteTWString(twExt);
+      deleteTWString(twPath);
+    }
   }
 
   /// Get address string for a coin (convenience).

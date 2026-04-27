@@ -39,6 +39,21 @@ class TWPublicKey {
   factory TWPublicKey.fromPointer(Pointer<raw.TWPublicKey> ptr) =>
       TWPublicKey._wrap(ptr);
 
+  /// Recover the public key from a [signature] over [message].
+  /// Returns `null` if recovery fails.
+  static TWPublicKey? recover(Uint8List signature, Uint8List message) {
+    final twSig = toTWData1(signature);
+    final twMsg = toTWData1(message);
+    try {
+      final ptr = lib.TWPublicKeyRecover(twSig, twMsg);
+      if (ptr == nullptr) return null;
+      return TWPublicKey.fromPointer(ptr);
+    } finally {
+      deleteTWData(castTWData1(twSig));
+      deleteTWData(castTWData1(twMsg));
+    }
+  }
+
   /// Native pointer.
   Pointer<raw.TWPublicKey> get pointer => _ptr!;
 
@@ -88,6 +103,30 @@ class TWPublicKey {
     } finally {
       deleteTWData(twSig);
       deleteTWData(twMsg);
+    }
+  }
+
+  /// Verify a DER (ASN.1)-encoded ECDSA signature.
+  bool verifyAsDER(Uint8List signature, Uint8List message) {
+    final twSig = toTWData1(signature);
+    final twMsg = toTWData1(message);
+    try {
+      return lib.TWPublicKeyVerifyAsDER(_ptr!, twSig, twMsg);
+    } finally {
+      deleteTWData(castTWData1(twSig));
+      deleteTWData(castTWData1(twMsg));
+    }
+  }
+
+  /// Verify a Zilliqa Schnorr signature.
+  bool verifyZilliqaSchnorr(Uint8List signature, Uint8List message) {
+    final twSig = toTWData1(signature);
+    final twMsg = toTWData1(message);
+    try {
+      return lib.TWPublicKeyVerifyZilliqaSchnorr(_ptr!, twSig, twMsg);
+    } finally {
+      deleteTWData(castTWData1(twSig));
+      deleteTWData(castTWData1(twMsg));
     }
   }
 

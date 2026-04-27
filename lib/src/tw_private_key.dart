@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import '../bindings/ceres_wallet_core_bindings.dart' as raw;
 import 'native.dart';
 import 'tw_data_helper.dart';
-import 'tw_string_helper.dart';
 import 'tw_public_key.dart';
 
 final _finalizer = Finalizer<Pointer<raw.TWPrivateKey>>((ptr) {
@@ -41,6 +40,13 @@ class TWPrivateKey {
   /// Create from hex string.
   factory TWPrivateKey.createWithHexString(String hex) {
     return TWPrivateKey.createWithData(_hexToBytes(hex));
+  }
+
+  /// Deep-copy an existing private key.
+  factory TWPrivateKey.createCopy(TWPrivateKey other) {
+    final ptr = lib.TWPrivateKeyCreateCopy(other._ptr!);
+    if (ptr == nullptr) throw StateError('Failed to copy private key');
+    return TWPrivateKey._wrap(ptr);
   }
 
   /// Create from a native pointer (internal use).
@@ -90,6 +96,30 @@ class TWPrivateKey {
     return TWPublicKey.fromPointer(ptr);
   }
 
+  /// Get ed25519-blake2b public key (Nano).
+  TWPublicKey getPublicKeyEd25519Blake2b() {
+    final ptr = lib.TWPrivateKeyGetPublicKeyEd25519Blake2b(_ptr!);
+    return TWPublicKey.fromPointer(ptr);
+  }
+
+  /// Get ed25519 extended public key for Cardano.
+  TWPublicKey getPublicKeyEd25519Cardano() {
+    final ptr = lib.TWPrivateKeyGetPublicKeyEd25519Cardano(_ptr!);
+    return TWPublicKey.fromPointer(ptr);
+  }
+
+  /// Get curve25519 public key.
+  TWPublicKey getPublicKeyCurve25519() {
+    final ptr = lib.TWPrivateKeyGetPublicKeyCurve25519(_ptr!);
+    return TWPublicKey.fromPointer(ptr);
+  }
+
+  /// Get NIST P-256 public key.
+  TWPublicKey getPublicKeyNist256p1() {
+    final ptr = lib.TWPrivateKeyGetPublicKeyNist256p1(_ptr!);
+    return TWPublicKey.fromPointer(ptr);
+  }
+
   /// Sign data with the given curve.
   Uint8List sign(Uint8List digest, raw.TWCurve curve) {
     final twDigest = toTWData(digest);
@@ -99,6 +129,29 @@ class TWPrivateKey {
       return fromTWData(result);
     } finally {
       deleteTWData(twDigest);
+    }
+  }
+
+  /// Sign and return the signature in DER (ASN.1) format. Used for some
+  /// chains that expect DER-encoded ECDSA signatures.
+  Uint8List signAsDER(Uint8List digest) {
+    final twDigest = toTWData1(digest);
+    try {
+      final result = lib.TWPrivateKeySignAsDER(_ptr!, twDigest);
+      return fromTWData1(result);
+    } finally {
+      deleteTWData(castTWData1(twDigest));
+    }
+  }
+
+  /// Zilliqa-flavoured Schnorr signature.
+  Uint8List signZilliqaSchnorr(Uint8List message) {
+    final twMsg = toTWData1(message);
+    try {
+      final result = lib.TWPrivateKeySignZilliqaSchnorr(_ptr!, twMsg);
+      return fromTWData1(result);
+    } finally {
+      deleteTWData(castTWData1(twMsg));
     }
   }
 

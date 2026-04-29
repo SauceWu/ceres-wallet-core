@@ -1,0 +1,8 @@
+{
+  "_source": "third_party/wallet-core/rust/tw_evm/tests/barz.rs:735",
+  "_test_name": "test_get_formatted_signature_rs_companion",
+  "_doc": "Companion to get_formatted_signature_001.json — same DER signature, used to test TWWebAuthn.getRSValues(DER) → r‖s extraction. P11 will compare the result against the r/s embedded inside Barz's formatted signature output.",
+  "signature_der": "3044022012d89e3b41e253dc9e90bd34dc1750d059b76d0b1d16af2059aa26e90b8960bf0220256d8a05572c654906ce422464693e280e243e6d9dbc5f96a681dba846bca276",
+  "expected_r_hex_32": "12d89e3b41e253dc9e90bd34dc1750d059b76d0b1d16af2059aa26e90b8960bf",
+  "expected_s_hex_32": "256d8a05572c654906ce422464693e280e243e6d9dbc5f96a681dba846bca276"
+}

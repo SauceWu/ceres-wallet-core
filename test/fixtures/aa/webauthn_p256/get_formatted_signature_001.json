@@ -1,0 +1,9 @@
+{
+  "_source": "third_party/wallet-core/rust/tw_evm/tests/barz.rs:735",
+  "_test_name": "test_get_formatted_signature",
+  "_doc": "Canonical WebAuthn signature vector. P11 (PasskeySigner) tests MUST consume this fixture per D-13. P7 (EvmSigner) reference per D-12 — note D-12 originally specified registration_001.json; this is the closest available canonical vector in barz.rs.",
+  "signature_der": "3044022012d89e3b41e253dc9e90bd34dc1750d059b76d0b1d16af2059aa26e90b8960bf0220256d8a05572c654906ce422464693e280e243e6d9dbc5f96a681dba846bca276",
+  "challenge": "cf267a78c5adaf96f341a696eb576824284c572f3e61be619694d539db1925f9",
+  "authenticator_data": "1a70842af8c1feb7133b81e6a160a6a2be45ee057f0eb6d3f7f5126daa202e071d00000000",
+  "client_data_json": "{\"type\":\"webauthn.get\",\"challenge\":\"zyZ6eMWtr5bzQaaW61doJChMVy8-Yb5hlpTVOdsZJfk\",\"origin\":\"https://trustwallet.com\"}"
+}

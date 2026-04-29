@@ -1,0 +1,35 @@
+{
+  "_source": "third_party/wallet-core/rust/tw_evm/tests/barz.rs:331",
+  "_test_name": "test_biz4337_transfer_batch",
+  "private_key": "3c90badc15c4d35733769093d3733501e92e7f16e101df284cee9a310d36c483",
+  "chain_id": "31337",
+  "nonce": "0",
+  "entry_point": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "sender": "0x2EF648D7C03412B832726fd4683E2625deA047Ba",
+  "paymaster": "0xb0086171AC7b6BD4D046580bca6d6A4b0835c232",
+  "paymaster_verification_gas_limit": "99999",
+  "paymaster_post_op_gas_limit": "88888",
+  "paymaster_data": "00000000000b0000000000002e234dae75c793f67a35089c9d99245e1c58470b00000000000000000000000000000000000000000000000000000000000186a0072f35038bcacc31bcdeda87c1d9857703a26fb70a053f6e87da5a4e7a1e1f3c4b09fbe2dbff98e7a87ebb45a635234f4b79eff3225d07560039c7764291c97e1b",
+  "pre_verification_gas": "1000000",
+  "verification_gas_limit": "100000",
+  "gas_limit": "100000",
+  "max_fee_per_gas": "100000",
+  "max_inclusion_fee_per_gas": "100000",
+  "wallet_type": "Biz4337",
+  "calls": [
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount": "",
+      "_call_kind": "erc20_approve",
+      "approve_spender": "0xb0086171AC7b6BD4D046580bca6d6A4b0835c232",
+      "approve_amount_hex": "2540befbfbd00"
+    },
+    {
+      "address": "0x03bBb5660B8687C2aa453A0e42dCb6e0732b1266",
+      "amount": "",
+      "_call_kind": "erc20_transfer",
+      "transfer_recipient": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      "transfer_amount_hex": "8AC7230489E80000"
+    }
+  ]
+}

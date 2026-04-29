@@ -69,15 +69,22 @@ Map<String, dynamic> loadAaFixture(String relPath) {
   }
   final joined = '$_aaFixtureRoot/$relPath';
   final file = File(joined);
-  if (!file.existsSync()) {
-    final resolved = file.absolute.path;
+  // Read first; surface the porting hint by catching the OS-level
+  // FileSystemException rather than pre-checking with existsSync(). This
+  // collapses two filesystem syscalls into one and removes a TOCTOU
+  // window between exists() and read() (WR-04). The hint about Plan 02
+  // is preserved verbatim so the contract documented in 06-CONTEXT.md
+  // still surfaces on a missing fixture.
+  final String raw;
+  try {
+    raw = file.readAsStringSync();
+  } on FileSystemException catch (e) {
     throw FileSystemException(
-      'Fixture not found: $joined (resolved: $resolved). '
-      'Did Plan 02 port it yet?',
+      'Fixture not found: $joined (resolved: ${file.absolute.path}). '
+      'Did Plan 02 port it yet? Underlying: ${e.message}',
       joined,
     );
   }
-  final raw = file.readAsStringSync();
   final decoded = jsonDecode(raw);
   if (decoded is! Map<String, dynamic>) {
     throw FormatException(

@@ -30,6 +30,18 @@ void main() {
     'approve_amount_hex',
     'private_key',
   };
+  // Address-shaped fields (0x-prefixed, decode to exactly 20 bytes).
+  // Validating them up front catches typos far closer to the source than
+  // a downstream pre_hash mismatch would (WR-02).
+  final addressFieldNames = <String>{
+    'entry_point',
+    'sender',
+    'to_address',
+    'factory',
+    'paymaster',
+    'approve_spender',
+    'transfer_recipient',
+  };
   final sourceLineRe = RegExp(
     r'^third_party/wallet-core/rust/tw_evm/tests/barz\.rs:[0-9]+$',
   );
@@ -80,6 +92,30 @@ void main() {
         // hex() throws FormatException on bad input.
         try {
           hex(value);
+        } on FormatException catch (e) {
+          fail('$relPath: hex(${entry.key}="$value") failed: $e');
+        }
+      }
+    }
+  });
+
+  test('every address field decodes to a 20-byte EVM address', () {
+    for (final f in allJsonFixtures()) {
+      final relPath = f.path.replaceFirst('$fixtureRoot/', '');
+      final fx = loadAaFixture(relPath);
+      for (final entry in fx.entries) {
+        if (!addressFieldNames.contains(entry.key)) continue;
+        final value = entry.value;
+        if (value is! String) {
+          fail('$relPath: ${entry.key} is not a string '
+              '(got ${value.runtimeType})');
+        }
+        try {
+          final bytes = hex(value);
+          if (bytes.length != 20) {
+            fail('$relPath: ${entry.key}="$value" is not a 20-byte '
+                'address (got ${bytes.length} bytes)');
+          }
         } on FormatException catch (e) {
           fail('$relPath: hex(${entry.key}="$value") failed: $e');
         }

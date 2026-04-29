@@ -22,7 +22,7 @@
       "amount": "",
       "_call_kind": "erc20_approve",
       "approve_spender": "0xb0086171AC7b6BD4D046580bca6d6A4b0835c232",
-      "approve_amount_hex": "2540befbfbd00"
+      "approve_amount_hex": "02540befbfbd00"
     },
     {
       "address": "0x03bBb5660B8687C2aa453A0e42dCb6e0732b1266",

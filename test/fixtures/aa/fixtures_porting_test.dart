@@ -35,10 +35,17 @@ void main() {
   );
 
   List<File> allJsonFixtures() {
+    // Exclude leading-underscore files: those are reserved for transient
+    // smoke-test placeholders written by sibling tests (e.g.
+    // fixture_loader_test.dart's `_loader_smoke.json`). Without this filter,
+    // a crash between that test's setUp/tearDown leaves the placeholder on
+    // disk and breaks the provenance assertion (WR-01).
     return Directory(fixtureRoot)
         .listSync(recursive: true)
         .whereType<File>()
-        .where((f) => f.path.endsWith('.json'))
+        .where((f) =>
+            f.path.endsWith('.json') &&
+            !f.uri.pathSegments.last.startsWith('_'))
         .toList();
   }
 

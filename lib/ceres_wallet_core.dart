@@ -38,6 +38,30 @@ export 'src/tw_ethereum_utils.dart';
 // ERC-4337 / Account Abstraction (Barz smart-account helpers).
 export 'src/tw_barz.dart';
 
+// === ERC-4337 / Account Abstraction (signer abstraction) ===
+// EvmSigner is the typed signature entry point every AA flow consumes.
+// The sealed EvmSignature union makes raw-r||s-vs-Barz-formatted-blob
+// mismatches a compile-time error (PITFALLS.md Pitfall 1). Single-flight
+// semantics on signDigest prevent concurrent passkey ceremonies (Pitfall 7).
+//
+// CHALLENGE CONTRACT (Pitfall 3): signDigest takes a raw 32-byte EVM digest;
+// it does NOT prepend `\x19Ethereum Signed Message:\n32` — that's
+// Erc1271Helper's job (Phase 10). The 32-byte length is asserted on entry.
+//
+// SINGLE-FLIGHT CAVEAT: callers awaiting an in-flight signDigest receive
+// the SAME EvmSignature instance. If two callers pass DIFFERENT digests
+// in parallel, the second silently receives the first's signature. Use
+// multiple signer instances for parallel-different-digests workflows.
+//
+// Phase 7 ships secp256k1 (Secp256k1Signer wrapping TWPrivateKey); Phase 11
+// adds PasskeySigner. The PasskeySignature placeholder here forbids the
+// raw-64-byte-r||s constructor at compile time.
+// evm_signature.dart is the library root; passkey_signature.dart,
+// evm_signer.dart, and secp256k1_signer.dart are `part of` that library —
+// all symbols are exported via the root with explicit `show` clauses.
+export 'src/aa/evm_signature.dart'
+    show EvmSignature, Secp256k1Signature, PasskeySignature, EvmSigner, Secp256k1Signer;
+
 // Solana — typed address (SPL token, Token-2022) and transaction builder
 // helpers (compute units, fee payer, blockhash + sign).
 export 'src/tw_solana_address.dart';

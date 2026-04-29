@@ -31,19 +31,33 @@
 /// distinct from flat `lib/src/tw_*.dart` TW wrappers.
 library;
 
+import 'dart:async';
 import 'dart:typed_data';
 
-// `passkey_signature.dart` is bound into THIS library via `part` (not
-// `import`) because Dart 3 sealed-class semantics require every direct
-// subtype to live in the SAME library as the sealed base. A plain
-// `import` would put `PasskeySignature` in a sibling library, which the
-// analyzer rejects as `invalid_use_of_type_outside_library`. The `part`
-// directive collapses both files into a single anonymous library while
-// preserving the per-file separation Plan 11 needs to grow
-// `passkey_signature.dart` in isolation. Plan 02 will reshape this into
-// a named-library / part-of-name structure when `evm_signer.dart` joins
-// the same library.
+// `package:meta` is a transitive dependency of the Flutter SDK (D-11
+// carry-forward from Phase 6: pubspec.yaml stays unchanged). The
+// `depend_on_referenced_packages` lint flags transitive imports; the
+// ignore is intentional and scoped to this single line.
+// ignore: depend_on_referenced_packages
+import 'package:meta/meta.dart';
+
+// `passkey_signature.dart` and `evm_signer.dart` are bound into THIS
+// library via `part` (not `import`) because Dart 3 sealed-class semantics
+// require every direct subtype of `EvmSignature` to live in the SAME
+// library as the sealed base. A plain `import` would put `PasskeySignature`
+// in a sibling library, which the analyzer rejects as
+// `invalid_use_of_type_outside_library`. The `part` directive collapses the
+// files into a single anonymous library while preserving per-file
+// separation. `evm_signer.dart` joins this library so that its
+// library-private template method `_doSign` (leading underscore) is
+// accessible to `Secp256k1Signer` (Plan 03) and Phase 11's `PasskeySigner`
+// when those subclass files also become `part of` this library.
+//
+// All imports needed by the parts (`@protected` from `package:meta`,
+// `dart:async`, `dart:typed_data`) are declared HERE at the library root —
+// `part of` files cannot have their own imports.
 part 'passkey_signature.dart';
+part 'evm_signer.dart';
 
 /// Sealed union of every signature shape the AA layer produces.
 /// Switch over this union is exhaustiveness-checked by Dart 3.

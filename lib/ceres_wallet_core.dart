@@ -62,6 +62,11 @@ export 'src/tw_barz.dart';
 export 'src/aa/evm_signature.dart'
     show EvmSignature, Secp256k1Signature, PasskeySignature, EvmSigner, Secp256k1Signer;
 
+// === ERC-4337 / Account Abstraction (calldata encoders) ===
+// Erc4337Calldata.executeCall / .executeBatch produce ABI-encoded calldata
+// for ERC-4337 smart-account execute functions. Selector constants are private.
+export 'src/aa/erc4337_calldata.dart' show Erc4337Calldata;
+
 // Solana — typed address (SPL token, Token-2022) and transaction builder
 // helpers (compute units, fee payer, blockhash + sign).
 export 'src/tw_solana_address.dart';

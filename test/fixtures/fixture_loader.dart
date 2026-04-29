@@ -13,23 +13,55 @@ import 'dart:typed_data';
 /// package root, which is the cwd when `flutter test` runs).
 const String _aaFixtureRoot = 'test/fixtures/aa';
 
+/// Normalizes a POSIX-ish path-segment list, resolving `.` and `..`
+/// segments without touching the filesystem. Returns null if `..`
+/// segments underflow (attempt to escape above the root).
+List<String>? _normalizeSegments(List<String> segments) {
+  final out = <String>[];
+  for (final seg in segments) {
+    if (seg.isEmpty || seg == '.') continue;
+    if (seg == '..') {
+      if (out.isEmpty) return null;
+      out.removeLast();
+      continue;
+    }
+    out.add(seg);
+  }
+  return out;
+}
+
+/// True iff `segs` starts with every segment in `prefix` in order.
+bool _startsWithPrefix(List<String> segs, List<String> prefix) {
+  if (segs.length < prefix.length) return false;
+  for (var i = 0; i < prefix.length; i++) {
+    if (segs[i] != prefix[i]) return false;
+  }
+  return true;
+}
+
 /// Loads a JSON fixture from `test/fixtures/aa/{relPath}` and returns
 /// it as `Map<String, dynamic>`.
 Map<String, dynamic> loadAaFixture(String relPath) {
-  final joined = '$_aaFixtureRoot/$relPath';
-  final normalized = File(joined).absolute.path;
-  final rootAbs = Directory(_aaFixtureRoot).absolute.path;
-  if (!normalized.startsWith(rootAbs)) {
+  // Path-escape guard (defense-in-depth, threat T-06-01-01): normalize
+  // `${_aaFixtureRoot}/${relPath}` purely as strings and reject any input
+  // whose `..` segments climb above the fixture root. We don't rely on
+  // `File.absolute.path` because that does not collapse `..` segments.
+  final rootSegs = _aaFixtureRoot.split('/');
+  final relSegs = relPath.split('/');
+  final normalizedSegs = _normalizeSegments([...rootSegs, ...relSegs]);
+  if (normalizedSegs == null || !_startsWithPrefix(normalizedSegs, rootSegs)) {
     throw ArgumentError.value(
       relPath,
       'relPath',
-      'Path escapes fixture root ($_aaFixtureRoot): resolved to $normalized',
+      'Path escapes fixture root ($_aaFixtureRoot)',
     );
   }
+  final joined = '$_aaFixtureRoot/$relPath';
   final file = File(joined);
   if (!file.existsSync()) {
+    final resolved = file.absolute.path;
     throw FileSystemException(
-      'Fixture not found: $joined (resolved: $normalized). '
+      'Fixture not found: $joined (resolved: $resolved). '
       'Did Plan 02 port it yet?',
       joined,
     );

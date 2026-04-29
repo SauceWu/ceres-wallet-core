@@ -42,6 +42,17 @@ bool _startsWithPrefix(List<String> segs, List<String> prefix) {
 /// Loads a JSON fixture from `test/fixtures/aa/{relPath}` and returns
 /// it as `Map<String, dynamic>`.
 Map<String, dynamic> loadAaFixture(String relPath) {
+  // Reject backslashes outright. This package targets iOS / Android /
+  // macOS only; allowing `\\` would silently bypass the path-traversal
+  // guard below because `split('/')` would not split on backslash and
+  // would yield a single segment containing the entire string (WR-03).
+  if (relPath.contains('\\')) {
+    throw ArgumentError.value(
+      relPath,
+      'relPath',
+      r'Backslashes not allowed; use forward slashes only',
+    );
+  }
   // Path-escape guard (defense-in-depth, threat T-06-01-01): normalize
   // `${_aaFixtureRoot}/${relPath}` purely as strings and reject any input
   // whose `..` segments climb above the fixture root. We don't rely on

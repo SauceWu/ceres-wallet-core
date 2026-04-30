@@ -6,16 +6,18 @@ set -eo pipefail
 # ============================================================
 #
 # Usage:
-#   ./tool/build_native.sh [ios|android|all]
+#   ./tool/build_native.sh [ios|android|macos|all]
 #
 # Produces:
-#   ios/Libraries/libCeresWalletCore.a      (merged: C++ + protobuf + trezor-crypto + Rust)
-#   android/src/main/jniLibs/{ABI}/*.so     (stripped)
+#   ios/Frameworks/ceres_wallet_core.xcframework   (device + simulator, all deps merged)
+#   android/src/main/jniLibs/{ABI}/*.so            (stripped)
+#   build/macos/libceres_wallet_core.dylib         (arm64, all deps merged)
 #
 # Requirements:
-#   - macOS (for iOS builds)
+#   - macOS (for iOS + macOS builds)
 #   - CMake, Ninja, Python 3
 #   - Rust nightly with targets: aarch64-apple-ios, aarch64-apple-ios-sim,
+#     aarch64-apple-darwin (for macOS),
 #     aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
 #   - Android NDK (for Android builds)
 
@@ -218,6 +220,52 @@ PLIST
     echo ">>> iOS done"
 }
 
+# ---- macOS Build ----
+build_macos() {
+    echo ">>> Building macOS..."
+
+    MACOS_OUT="$PLUGIN_DIR/build/macos"
+    mkdir -p "$MACOS_OUT"
+
+    # Build Rust for macOS (arm64 host)
+    echo "  Rust: aarch64-apple-darwin"
+    (cd "$WC_DIR/rust" && cargo build --release --target aarch64-apple-darwin)
+
+    # Build C++ for macOS
+    echo "  C++: macOS arm64"
+    rm -rf "$WC_DIR/build/macos"
+    cmake -S "$WC_DIR" -B "$WC_DIR/build/macos" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+        -DFLUTTER=ON -DTW_UNITY_BUILD=ON -DTW_COMPILE_JAVA=OFF -DTW_COMPILE_KOTLIN=OFF
+    cmake --build "$WC_DIR/build/macos" --config Release -- TrustWalletCore protobuf TrezorCrypto
+
+    # Merge all static libs into one fat archive
+    echo "  Merging macOS libs..."
+    libtool -static -o /tmp/libCeresWalletCore_macos.a \
+        "$WC_DIR/build/macos/libTrustWalletCore.a" \
+        "$WC_DIR/build/macos/libprotobuf.a" \
+        "$WC_DIR/build/macos/trezor-crypto/libTrezorCrypto.a" \
+        "$WC_DIR/rust/target/aarch64-apple-darwin/release/libwallet_core_rs.a"
+
+    # Link into a dylib
+    echo "  Linking dylib..."
+    clang -dynamiclib \
+        -arch arm64 \
+        -mmacosx-version-min=12.0 \
+        -install_name "@rpath/libceres_wallet_core.dylib" \
+        -Wl,-force_load,/tmp/libCeresWalletCore_macos.a \
+        -Wl,-undefined,dynamic_lookup \
+        -lc++ -lz -framework Security -framework Foundation \
+        -o "$MACOS_OUT/libceres_wallet_core.dylib"
+
+    rm -f /tmp/libCeresWalletCore_macos.a
+
+    DYLIB_SIZE=$(du -h "$MACOS_OUT/libceres_wallet_core.dylib" | cut -f1)
+    echo "  dylib: $DYLIB_SIZE"
+    echo ">>> macOS done"
+}
+
 # ---- Android Build ----
 build_android() {
     echo ">>> Building Android..."
@@ -333,6 +381,13 @@ package() {
         done
     fi
 
+    # Package macOS dylib
+    MACOS_DYLIB="$PLUGIN_DIR/build/macos/libceres_wallet_core.dylib"
+    if [ -f "$MACOS_DYLIB" ]; then
+        (cd "$PLUGIN_DIR/build/macos" && tar -czf "$DIST/macos-arm64.tar.gz" libceres_wallet_core.dylib)
+        echo "  macos-arm64.tar.gz: $(du -h "$DIST/macos-arm64.tar.gz" | cut -f1)"
+    fi
+
     echo ">>> Packaging done"
 }
 
@@ -340,9 +395,10 @@ package() {
 case "$TARGET" in
     ios)     build_ios; package ;;
     android) build_android; package ;;
-    all)     build_ios; build_android; package ;;
+    macos)   build_macos; package ;;
+    all)     build_ios; build_android; build_macos; package ;;
     package) package ;;
-    *)       echo "Usage: $0 [ios|android|all|package]"; exit 1 ;;
+    *)       echo "Usage: $0 [ios|android|macos|all|package]"; exit 1 ;;
 esac
 
 echo ""

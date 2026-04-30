@@ -1,3 +1,38 @@
+## 1.1.0
+
+ERC-4337 Account Abstraction (AA) Foundation — complete Barz passkey smart-account SDK (v1.1 milestone).
+
+### Added — ERC-4337 / Account Abstraction
+
+- **`EvmSigner` / `Secp256k1Signer` / `PasskeySigner`** — sealed `EvmSignature` union (Phase 7 + 11).
+  - `PasskeySigner` accepts injected `PasskeyAdapter`; SDK stays platform-agnostic.
+  - Single-flight invariant prevents concurrent passkey ceremonies (Pitfall 7).
+  - `PasskeySignature.fromBarzFormatted` enforces ≥200-byte Barz blob (Pitfall 1).
+- **`Erc4337Calldata`** — `executeCall` / `executeBatch` ABI encoders with selector verification (Phase 8).
+- **`BarzDeployment` / `BarzDeployments`** — per-chain immutable value object + registry covering 6 canonical chains: ETH mainnet, Sepolia, Base, Arbitrum, Optimism, Polygon (Phase 9).
+- **`PasskeyBarzAddress`** — counterfactual address derivation with mandatory CREATE2 round-trip verification (Pitfall 2 prevention). New `acrossChains(p256PubKey, salt, chainIds)` method returns `Map<int, String>` (Phase 9 + 13).
+- **`BarzInitCode`** — `forPasskey(...)` returns both v0.6 monolithic `initCode` and v0.7 `factory`+`factoryData` shapes (Phase 9).
+- **`Erc1271Helper`** — per-(barzAddress, chainId) `personalSignDigest`, `typedDataDigest`, `formatPasskeySignature`, `encodeIsValidSignature`. No domain separator caching (Pitfall 6). No EOA-style `r‖s‖v` (Pitfall 5) (Phase 10).
+- **`PasskeyAssertion`** — value class for WebAuthn ceremony outputs; defensive-copies all byte fields (Phase 10 + 11).
+- **`Erc4337Builder`** — top-of-stack UserOperation assembler with `v06(...)` / `v07(...)` factories, `attachSignature` as sole conversion site, deployed-state tracking (Pitfall 12), and clientDataJSON challenge round-trip validation (Pitfall 3) (Phase 12).
+- **`PasskeyChallengeMismatch`** — thrown when `clientDataJSON.challenge` does not match the UserOp hash (Phase 12).
+- **`Eip7702Upgrader`** — EIP-7702 EOA→Barz upgrade authorization builder; secp256k1 only — throws for `PasskeySigner` (AA-12, Phase 13).
+- **`BarzDiamondCut`** — EIP-2535 diamond-cut calldata encoder via `DiamondCutInput` proto (AA-13, Phase 13).
+- **`BarzSessionKey`** — session-key facet calldata encoder (AA-14, Phase 13).
+- **`FacetCutSpec`** — value object for `BarzDiamondCut.encode` parameters.
+- **`Eip7702Authorization`** — signed EIP-7702 authorization result type.
+
+### Changed
+
+- All AA classes live under `lib/src/aa/`; pure-Dart composition layer, no `TW` prefix.
+
+### Fixed
+
+- `PasskeySignature.fromBarzFormatted` length assertion prevents raw `r‖s` (64 bytes) from masquerading as a Barz signature (Pitfall 1).
+- `Erc1271Helper` explicitly states "Verifies via IERC1271.isValidSignature, NOT ecrecover" in its class docstring.
+
+---
+
 ## 0.2.0
 
 Major Dart wrapper expansion — high-level API now covers ~95% of the relevant FFI surface. `TWAnySigner.sign` is for transactions only; the new wrappers fix the silent `0x` signatures that occurred when `MessageSigningInput` was fed to the wrong API.

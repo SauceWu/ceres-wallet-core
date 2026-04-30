@@ -59,13 +59,56 @@ export 'src/tw_barz.dart';
 // evm_signature.dart is the library root; passkey_signature.dart,
 // evm_signer.dart, and secp256k1_signer.dart are `part of` that library —
 // all symbols are exported via the root with explicit `show` clauses.
+// Phase 11 adds PasskeySigner and PasskeyAdapter to the sealed library.
 export 'src/aa/evm_signature.dart'
-    show EvmSignature, Secp256k1Signature, PasskeySignature, EvmSigner, Secp256k1Signer;
+    show EvmSignature, Secp256k1Signature, PasskeySignature, EvmSigner,
+         Secp256k1Signer, PasskeySigner, PasskeyAdapter;
 
 // === ERC-4337 / Account Abstraction (calldata encoders) ===
 // Erc4337Calldata.executeCall / .executeBatch produce ABI-encoded calldata
 // for ERC-4337 smart-account execute functions. Selector constants are private.
 export 'src/aa/erc4337_calldata.dart' show Erc4337Calldata;
+
+// === ERC-4337 / Account Abstraction (Barz deployment registry + address) ===
+// BarzDeployment is an immutable per-chain value object. BarzDeployments is the
+// registry covering 6 canonical chains (mainnet, Sepolia, Base, Arbitrum,
+// Optimism, Polygon). PasskeyBarzAddress.compute derives the counterfactual
+// address with mandatory round-trip CREATE2 verification (Pitfall 2).
+// BarzInitCode.forPasskey returns both ERC-4337 v0.6 (monolithic initCode) and
+// v0.7 (factory + factoryData) forms.
+export 'src/aa/barz_deployment.dart'
+    show BarzDeployment, BarzDeployments;
+export 'src/aa/passkey_barz_address.dart'
+    show PasskeyBarzAddress, BarzAddressMismatchError;
+export 'src/aa/barz_init_code.dart'
+    show BarzInitCode, BarzInitCodeResult;
+
+// === ERC-4337 / Account Abstraction (Phase 13: EIP-7702 + P2 increments) ===
+// Eip7702Upgrader: secp256k1-only EOA→Barz upgrade authorization (Pitfall 1).
+// BarzDiamondCut: EIP-2535 diamond-cut calldata encoder via DiamondCutInput proto.
+// BarzSessionKey: session-key facet calldata encoder (AA-14).
+// PasskeyBarzAddress.acrossChains: multi-chain counterfactual address map (AA-15).
+export 'src/aa/eip7702_upgrader.dart'
+    show Eip7702Upgrader, Eip7702Authorization;
+export 'src/aa/barz_diamond_cut.dart' show BarzDiamondCut, FacetCutSpec;
+export 'src/aa/barz_session_key.dart' show BarzSessionKey;
+
+// === ERC-4337 / Account Abstraction (UserOperation builder v0.6 + v0.7) ===
+// Erc4337Builder assembles UserOperation protos from typed inputs.
+// v06/v07 factory constructors map to separate proto types (Pitfall 4).
+// attachSignature is the SOLE conversion from EvmSignature to sig bytes.
+// Deployed-state tracking prevents initCode regeneration (Pitfall 12).
+// Challenge round-trip validation guards against passkey ceremony hijack.
+export 'src/aa/erc4337_builder.dart' show Erc4337Builder, PasskeyChallengeMismatch;
+
+// === ERC-4337 / Account Abstraction (ERC-1271 helper) ===
+// Erc1271Helper is immutably bound to one (barzAddress, chainId) pair.
+// Verifies via IERC1271.isValidSignature, NOT ecrecover (Pitfall 5 prevention).
+// No domain separator caching — every digest call re-invokes getPrefixedMsgHash
+// (Pitfall 6 prevention). PasskeyAssertion colocates the WebAuthn ceremony
+// outputs needed by formatPasskeySignature (Pitfall 1 prevention).
+export 'src/aa/erc1271_helper.dart' show Erc1271Helper;
+export 'src/aa/passkey_assertion.dart' show PasskeyAssertion;
 
 // Solana — typed address (SPL token, Token-2022) and transaction builder
 // helpers (compute units, fee payer, blockhash + sign).

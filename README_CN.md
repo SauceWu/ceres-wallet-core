@@ -1,8 +1,9 @@
 # ceres_wallet_core
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![pub.dev](https://img.shields.io/badge/pub.dev-v1.1.0-blue)](https://pub.dev/packages/ceres_wallet_core)
 
-Flutter 插件，通过 Dart FFI 绑定 [Trust Wallet Core](https://github.com/SauceWu/wallet-core)，支持 Ethereum、Solana、Sui、Tron 及 27+ EVM L2 链。
+Flutter 插件，通过 Dart FFI 绑定 [Trust Wallet Core](https://github.com/SauceWu/wallet-core)，支持 Ethereum、Solana、Sui、Tron 及 27+ EVM L2 链——并提供完整的 ERC-4337 / EIP-7702 账户抽象中间层。
 
 [English](README.md)
 
@@ -13,11 +14,12 @@ Flutter 插件，通过 Dart FFI 绑定 [Trust Wallet Core](https://github.com/S
 - **地址验证** — 验证任意支持链的地址
 - **多链支持** — ETH、SOL、SUI、TRX + Polygon、Arbitrum、Base、Optimism 等 20+ EVM L2
 - **内存安全** — 通过 Dart Finalizer 自动清理 native 资源
+- **账户抽象（v1.1）** — 完整的 ERC-4337 / EIP-7702 中间层：统一签名抽象、Barz 智能账户地址派生、UserOperation 组装器、ERC-1271 消息签名、EIP-7702 EOA 升级
 
 ## 环境要求
 
 - Flutter >= 3.38.0 / Dart >= 3.9.0
-- iOS 13.0+ / Android API 21+
+- iOS 13.0+ / Android API 21+ / macOS 12.0+
 - 预编译 native 库（参见[编译说明](#编译-native-库)）
 
 ## 安装
@@ -138,6 +140,85 @@ wallet.delete();
 | 类 | 说明 |
 |---|------|
 | `TWWebAuthn` | 从 `attestationObject` 抽 P-256 公钥；用 `authenticatorData` + `clientDataJSON` 重建签名原文；从 ASN.1 签名中拆出 `r ‖ s`。配 `TWBarz` 做 ERC-4337 passkey 智能账户。 |
+
+### 账户抽象（v1.1）— ERC-4337 / EIP-7702
+
+#### 签名抽象层
+| 类 | 说明 |
+|---|------|
+| `EvmSigner` | 抽象基类，单飞 `Future<EvmSignature> signDigest(Uint8List digest32)` — 并发调用自动合并为一次在途操作 |
+| `Secp256k1Signer` | 包装 `TWPrivateKey` 的具体实现 — 输出 65 字节 `r‖s‖v` |
+| `PasskeySigner` | P-256 / WebAuthn 具体实现 — 接收注入的 `Future<PasskeyAssertion> Function(Uint8List)` 适配器；SDK 无平台依赖 |
+| `EvmSignature` | `sealed class` 联合类型（`Secp256k1Signature` \| `PasskeySignature`）— 编译期防止裸字节误用 |
+
+#### Barz 智能账户地址与部署
+| 类 | 说明 |
+|---|------|
+| `BarzDeployments` | 多链注册表，覆盖 mainnet、Sepolia、Base、Arbitrum、Optimism、Polygon — 每条链固定（chainId、factory、verificationFacet、entryPoint） |
+| `BarzDeployment` | 单链部署地址的不可变值对象 |
+| `PasskeyBarzAddress` | `compute(deployment, p256PubKey, salt)` — 反事实地址，内部强制 CREATE2 round-trip 校验；`acrossChains(...)` — 批量多链 |
+| `BarzInitCode` | `forPasskey(deployment, p256PubKey, salt)` — 同时返回 v0.6 一体式 `initCode` 和 v0.7 分离式 `(factory, factoryData)` |
+
+#### ERC-4337 UserOperation 组装器
+| 类 | 说明 |
+|---|------|
+| `Erc4337Builder` | `v06(...)` / `v07(...)` 命名构造器对应不同 proto 类型；`attachSignature(EvmSignature)` 是签名→字节的唯一入口；自动校验 `clientDataJSON` challenge |
+| `Erc4337Calldata` | `executeCall(target, value, data)` / `executeBatch(...)` — ABI 编码的 inner-call calldata，selector 经 keccak256 验证 |
+
+#### ERC-1271 消息签名
+| 类 | 说明 |
+|---|------|
+| `Erc1271Helper` | per-(barzAddress, chainId) 实例 — `personalSignDigest` / `typedDataDigest` / `formatPasskeySignature` / `encodeIsValidSignature`；严格非 EOA |
+| `PasskeyAssertion` | WebAuthn 断言结果值对象（`derSignature`、`authenticatorData`、`clientDataJSON`、`challenge`） |
+
+#### EIP-7702 与高级功能
+| 类 | 说明 |
+|---|------|
+| `Eip7702Upgrader` | `buildAuthorization(chainId, contractAddress, nonce, signer)` — 包装 `TWBarz.signAuthorization`；传入 `PasskeySigner` 会抛出（7702 必须用 secp256k1） |
+| `BarzDiamondCut` | `encode(adds, removes, replaces)` — EIP-2535 diamond facet 升级 calldata |
+| `BarzSessionKey` | `installCalldata(key, validUntil, allowedTargets)` — session key facet ABI calldata |
+
+#### 账户抽象快速上手
+
+```dart
+import 'package:ceres_wallet_core/ceres_wallet_core.dart';
+
+// --- secp256k1 路径 ---
+final signer = Secp256k1Signer(privateKey);
+
+// --- Passkey 路径（注入你的平台适配器） ---
+final signer = PasskeySigner(
+  (challenge) async {
+    // 在此调用平台 passkey 插件
+    final assertion = await myPasskeyPlugin.authenticate(challenge);
+    return PasskeyAssertion(
+      derSignature: assertion.signature,
+      authenticatorData: assertion.authenticatorData,
+      clientDataJSON: assertion.clientDataJSON,
+      challenge: challenge,
+    );
+  },
+);
+
+// --- 反事实地址 ---
+final deployment = BarzDeployments.sepolia;
+final address = PasskeyBarzAddress.compute(deployment, p256PubKeyBytes, salt32);
+
+// --- 构建 v0.7 UserOperation ---
+final builder = Erc4337Builder.v07(
+  sender: address,
+  deployment: deployment,
+  p256PublicKey: p256PubKeyBytes,
+  salt: salt32,
+  deployed: false,
+);
+final sig = await signer.signDigest(userOpHash);
+final userOp = builder.attachSignature(sig);
+
+// --- ERC-1271 消息签名 ---
+final helper = Erc1271Helper(barzAddress: address, chainId: 11155111);
+final digest = helper.personalSignDigest(Uint8List.fromList(utf8.encode('Hello')));
+```
 
 ### Passkey 钱包流程
 
@@ -285,6 +366,9 @@ bash tool/build_native.sh ios
 # Android（需要 Android NDK）
 bash tool/build_native.sh android
 
+# macOS（需要 macOS + Xcode 命令行工具）
+bash tool/build_native.sh macos
+
 # 全平台
 bash tool/build_native.sh all
 ```
@@ -294,10 +378,18 @@ bash tool/build_native.sh all
 ### 编译依赖
 
 - CMake >= 3.18、Ninja
-- Rust nightly（需安装 iOS/Android targets）
+- Rust nightly（需安装 iOS / Android / macOS targets）
 - Python 3
 - cbindgen
-- Xcode（iOS）/ Android NDK（Android）
+- Xcode（iOS + macOS）/ Android NDK（Android）
+
+### 各平台产物
+
+| 平台 | 产物 | 打包文件 |
+|------|------|---------|
+| iOS | `ios/Frameworks/ceres_wallet_core.xcframework` | `ios-xcframework.tar.gz` |
+| Android | `android/src/main/jniLibs/{ABI}/libceres_wallet_core.so` | `android-{abi}.tar.gz` |
+| macOS | `build/macos/libceres_wallet_core.dylib` | `macos-arm64.tar.gz` |
 
 ## 测试
 
@@ -312,16 +404,35 @@ flutter test integration_test/wallet_core_test.dart -d <device_id>
 lib/
   ceres_wallet_core.dart         # 导出入口
   src/                           # 高层 Dart 封装
+    aa/                          # 账户抽象层（v1.1）
+      evm_signer.dart            #   抽象 EvmSigner + 单飞不变量
+      evm_signature.dart         #   sealed EvmSignature 联合类型
+      secp256k1_signer.dart      #   Secp256k1Signer（TWPrivateKey）
+      passkey_signer.dart        #   PasskeySigner（注入式 WebAuthn 适配器）
+      passkey_assertion.dart     #   PasskeyAssertion 值对象
+      passkey_signature.dart     #   PasskeySignature（Barz 格式化 blob）
+      barz_deployment.dart       #   BarzDeployment + BarzDeployments 注册表
+      passkey_barz_address.dart  #   反事实地址（CREATE2 round-trip 校验）
+      barz_init_code.dart        #   v0.6/v0.7 initCode 生成
+      erc4337_builder.dart       #   UserOperation 组装器
+      erc4337_calldata.dart      #   executeCall / executeBatch 编码器
+      erc1271_helper.dart        #   ERC-1271 消息签名 helper
+      eip7702_upgrader.dart      #   EIP-7702 EOA → Barz 授权
+      barz_diamond_cut.dart      #   EIP-2535 diamond facet 升级 calldata
+      barz_session_key.dart      #   Session key facet calldata
   bindings/                      # ffigen 生成的 C 绑定
   proto/                         # Protobuf 模型（ETH/SOL/SUI/TRX）
 tool/
-  build_native.sh                # 一键编译脚本
+  build_native.sh                # 一键编译脚本（ios/android/macos/all）
   ci_patches.py                  # wallet-core 源码裁剪
   trim_registry.py               # 链注册表裁剪
 third_party/
   wallet-core/                   # Git submodule（SauceWu/wallet-core fork）
 hook/
   build.dart                     # Dart build hook，用于 native 库分发
+test/
+  aa/                            # AA 层单元测试
+  fixtures/                      # 规范化 WebAuthn / UserOperation 测试向量
 ```
 
 ## 许可证

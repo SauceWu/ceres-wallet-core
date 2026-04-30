@@ -79,7 +79,11 @@ final class Secp256k1Signature extends EvmSignature {
     required this.s,
     required this.v,
   })  : assert(r.length == 32, 'r must be exactly 32 bytes'),
-        assert(s.length == 32, 's must be exactly 32 bytes');
+        assert(s.length == 32, 's must be exactly 32 bytes'),
+        assert(
+          v == 0x1b || v == 0x1c,
+          'v must be 0x1b (27) or 0x1c (28) for Ethereum secp256k1 recovery; got $v',
+        );
 
   /// Parse a TW-shaped 65-byte buffer (`r ‖ s ‖ v`).
   /// `TWPrivateKey.sign(digest, TWCurve.TWCurveSECP256k1)` returns this layout.

@@ -324,13 +324,24 @@ abstract final class PasskeyBarzAddress {
   static Uint8List _hexAddressToBytes20(String address) {
     var s = address;
     if (s.startsWith('0x') || s.startsWith('0X')) s = s.substring(2);
-    assert(
-      s.length == 40,
-      'Ethereum address must be 40 hex chars (got ${s.length}): $address',
-    );
+    if (s.length != 40) {
+      throw ArgumentError.value(
+        address,
+        'address',
+        'Ethereum address must be 40 hex chars after 0x prefix (got ${s.length})',
+      );
+    }
     final out = Uint8List(20);
     for (var i = 0; i < 20; i++) {
-      out[i] = int.parse(s.substring(i * 2, i * 2 + 2), radix: 16);
+      final byte = int.tryParse(s.substring(i * 2, i * 2 + 2), radix: 16);
+      if (byte == null) {
+        throw ArgumentError.value(
+          address,
+          'address',
+          'Invalid hex character at position ${i * 2}',
+        );
+      }
+      out[i] = byte;
     }
     return out;
   }

@@ -40,6 +40,11 @@ abstract final class BarzSessionKey {
     required BigInt validUntil,
     List<String> allowedTargets = const [],
   }) {
+    assert(
+      validUntil > BigInt.zero,
+      'BarzSessionKey: validUntil=$validUntil means the session key expires '
+      'immediately (UNIX timestamp 0 = 1970-01-01). Pass a future timestamp.',
+    );
     final fn = TWEthereumAbiFunction.createWithString(functionSignature);
     try {
       // address key
@@ -72,7 +77,15 @@ abstract final class BarzSessionKey {
     }
     final out = Uint8List(20);
     for (var i = 0; i < 20; i++) {
-      out[i] = int.parse(s.substring(i * 2, i * 2 + 2), radix: 16);
+      final byte = int.tryParse(s.substring(i * 2, i * 2 + 2), radix: 16);
+      if (byte == null) {
+        throw ArgumentError.value(
+          address,
+          'address',
+          'Invalid hex character at position ${i * 2}',
+        );
+      }
+      out[i] = byte;
     }
     return out;
   }

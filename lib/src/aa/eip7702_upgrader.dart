@@ -55,8 +55,25 @@ abstract final class Eip7702Upgrader {
     required Uint8List chainId,
     required String contractAddress,
     required Uint8List nonce,
-  }) =>
-      TWBarz.getAuthorizationHash(chainId, contractAddress, nonce);
+  }) {
+    if (chainId.isEmpty) {
+      throw ArgumentError.value(chainId, 'chainId', 'must not be empty');
+    }
+    if (nonce.isEmpty) {
+      throw ArgumentError.value(nonce, 'nonce', 'must not be empty');
+    }
+    final addr = contractAddress.startsWith('0x') || contractAddress.startsWith('0X')
+        ? contractAddress.substring(2)
+        : contractAddress;
+    if (addr.length != 40) {
+      throw ArgumentError.value(
+        contractAddress,
+        'contractAddress',
+        'must be a 0x-prefixed 40-hex-char Ethereum address',
+      );
+    }
+    return TWBarz.getAuthorizationHash(chainId, contractAddress, nonce);
+  }
 
   /// Signs an EIP-7702 authorization with the given [signer].
   ///

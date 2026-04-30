@@ -17,13 +17,13 @@
 /// is thrown before the address is returned to the caller.
 library;
 
-import 'dart:convert' show utf8;
 import 'dart:typed_data';
 
 import '../tw_barz.dart';
 import '../tw_ethereum_utils.dart';
 import '../tw_hash.dart';
 import 'barz_deployment.dart';
+import '_proto_utils.dart' as proto;
 
 /// Thrown when the two independent CREATE2 computation paths in
 /// [PasskeyBarzAddress.compute] produce different addresses.
@@ -224,42 +224,17 @@ abstract final class PasskeyBarzAddress {
   }) {
     final buf = BytesBuilder(copy: false);
 
-    _writeProto3String(buf, 1, entryPoint);
-    _writeProto3String(buf, 2, factory);
-    _writeProto3String(buf, 3, accountFacet);
-    _writeProto3String(buf, 4, verificationFacet);
-    _writeProto3String(buf, 5, facetRegistry);
-    _writeProto3String(buf, 6, defaultFallback);
-    _writeProto3String(buf, 7, barzCreationCodeHex);
-    _writeProto3String(buf, 8, publicKeyHex);
-    // Proto3: uint32 defaults to 0 → omit when zero.
-    if (salt != 0) {
-      _writeProto3Uint32(buf, 9, salt);
-    }
+    proto.writeProto3String(buf, 1, entryPoint);
+    proto.writeProto3String(buf, 2, factory);
+    proto.writeProto3String(buf, 3, accountFacet);
+    proto.writeProto3String(buf, 4, verificationFacet);
+    proto.writeProto3String(buf, 5, facetRegistry);
+    proto.writeProto3String(buf, 6, defaultFallback);
+    proto.writeProto3String(buf, 7, barzCreationCodeHex);
+    proto.writeProto3String(buf, 8, publicKeyHex);
+    proto.writeProto3Uint32(buf, 9, salt); // omitted automatically when 0
 
     return buf.toBytes();
-  }
-
-  static void _writeProto3String(BytesBuilder buf, int fieldNum, String v) {
-    if (v.isEmpty) return;
-    final bytes = utf8.encode(v);
-    buf.addByte((fieldNum << 3) | 2); // Wire type 2 = LEN
-    _writeVarint(buf, bytes.length);
-    buf.add(bytes);
-  }
-
-  static void _writeProto3Uint32(BytesBuilder buf, int fieldNum, int value) {
-    buf.addByte((fieldNum << 3) | 0); // Wire type 0 = VARINT
-    _writeVarint(buf, value);
-  }
-
-  static void _writeVarint(BytesBuilder buf, int value) {
-    assert(value >= 0);
-    while (value > 0x7F) {
-      buf.addByte((value & 0x7F) | 0x80);
-      value >>>= 7;
-    }
-    buf.addByte(value & 0x7F);
   }
 
   // ── ABI encoding helpers ─────────────────────────────────────────────────

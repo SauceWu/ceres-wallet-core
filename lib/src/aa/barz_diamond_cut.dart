@@ -4,10 +4,10 @@
 /// proto3 payload and delegates to `TWBarz.getDiamondCutCode`.
 library;
 
-import 'dart:convert' show utf8;
 import 'dart:typed_data';
 
 import '../tw_barz.dart';
+import '_proto_utils.dart' as proto;
 
 /// Specifies a single facet operation for [BarzDiamondCut.encode].
 ///
@@ -80,12 +80,12 @@ abstract final class BarzDiamondCut {
       ..._makeCuts(removes, _actionRemove),
     ];
 
-    final proto = _serializeDiamondCutInput(
+    final protoBytes = _serializeDiamondCutInput(
       allCuts,
       initAddress,
       initData ?? Uint8List(0),
     );
-    return TWBarz.getDiamondCutCode(proto);
+    return TWBarz.getDiamondCutCode(protoBytes);
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
@@ -140,72 +140,41 @@ abstract final class BarzDiamondCut {
     String initAddress,
     Uint8List initData,
   ) {
-    final buf = <int>[];
+    final buf = BytesBuilder(copy: false);
 
     for (final cut in cuts) {
+      // Field 1 (facet_cuts), wire type 2 (LEN) — write sub-message length-delimited
       final facetCutBytes = _serializeFacetCut(cut);
-      // Field 1 (facet_cuts), wire type 2 (LEN)
-      buf.addAll(_writeTag(1, 2));
-      buf.addAll(_writeVarint(facetCutBytes.length));
-      buf.addAll(facetCutBytes);
+      proto.writeTag(buf, 1, 2);
+      proto.writeVarint(buf, facetCutBytes.length);
+      buf.add(facetCutBytes);
     }
 
     // Field 2 (init_address), wire type 2 (LEN) — string
-    final initAddrBytes = _encodeUtf8(initAddress);
-    buf.addAll(_writeTag(2, 2));
-    buf.addAll(_writeVarint(initAddrBytes.length));
-    buf.addAll(initAddrBytes);
+    proto.writeProto3String(buf, 2, initAddress);
 
     // Field 3 (init_data), wire type 2 (LEN) — bytes
-    if (initData.isNotEmpty) {
-      buf.addAll(_writeTag(3, 2));
-      buf.addAll(_writeVarint(initData.length));
-      buf.addAll(initData);
-    }
+    proto.writeProto3Bytes(buf, 3, initData);
 
-    return Uint8List.fromList(buf);
+    return buf.toBytes();
   }
 
   static Uint8List _serializeFacetCut(
     ({String facetAddress, int action, List<Uint8List> selectors}) cut,
   ) {
-    final buf = <int>[];
+    final buf = BytesBuilder(copy: false);
 
     // Field 1 (facet_address), wire type 2 (LEN) — string
-    final addrBytes = _encodeUtf8(cut.facetAddress);
-    buf.addAll(_writeTag(1, 2));
-    buf.addAll(_writeVarint(addrBytes.length));
-    buf.addAll(addrBytes);
+    proto.writeProto3String(buf, 1, cut.facetAddress);
 
-    // Field 2 (action), wire type 0 (VARINT) — enum
-    if (cut.action != 0) {
-      buf.addAll(_writeTag(2, 0));
-      buf.addAll(_writeVarint(cut.action));
-    }
+    // Field 2 (action), wire type 0 (VARINT) — enum (omit when ADD=0)
+    proto.writeProto3Uint32(buf, 2, cut.action);
 
     // Field 3 (function_selectors), wire type 2 (LEN) — repeated bytes
     for (final sel in cut.selectors) {
-      buf.addAll(_writeTag(3, 2));
-      buf.addAll(_writeVarint(sel.length));
-      buf.addAll(sel);
+      proto.writeProto3Bytes(buf, 3, sel);
     }
 
-    return Uint8List.fromList(buf);
+    return buf.toBytes();
   }
-
-  static List<int> _writeTag(int fieldNumber, int wireType) {
-    return _writeVarint((fieldNumber << 3) | wireType);
-  }
-
-  static List<int> _writeVarint(int value) {
-    final bytes = <int>[];
-    while (value > 0x7F) {
-      bytes.add((value & 0x7F) | 0x80);
-      value >>= 7;
-    }
-    bytes.add(value & 0x7F);
-    return bytes;
-  }
-
-  static List<int> _encodeUtf8(String s) => utf8.encode(s);
 }

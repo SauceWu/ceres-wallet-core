@@ -25,6 +25,8 @@ library;
 import 'dart:convert' show base64Url, jsonDecode;
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart' show visibleForTesting;
+
 import '../../bindings/ceres_wallet_core_bindings.dart' show TWCoinType;
 import '../../proto/Ethereum.pb.dart' as eth_proto;
 import '../../proto/Ethereum.pbenum.dart';
@@ -503,6 +505,20 @@ class Erc4337Builder {
     return out;
   }
 
+  /// Test-only entry point for [_validateChallenge].
+  ///
+  /// Allows unit tests to exercise the challenge-validation logic with an
+  /// arbitrary [storedHash] without requiring FFI ([computeHash] is the only
+  /// production path that sets `_computedHash`).
+  ///
+  /// Not part of the public API — do not call from production code.
+  @visibleForTesting
+  static void validateChallengeForTest(
+    String clientDataJSON,
+    Uint8List storedHash,
+  ) =>
+      _validateChallenge(clientDataJSON, storedHash);
+
   /// Validate that the base64url-decoded challenge in [clientDataJSON] matches
   /// the expected [userOpHash]. Throws [PasskeyChallengeMismatch] on mismatch.
   static void _validateChallenge(String clientDataJSON, Uint8List userOpHash) {
@@ -521,9 +537,10 @@ class Erc4337Builder {
       );
     }
     // base64url-no-pad → bytes (add padding if needed).
-    final normalized = base64Url.normalize(challengeB64);
+    // Both normalize and decode can throw FormatException on invalid input.
     final Uint8List challengeBytes;
     try {
+      final normalized = base64Url.normalize(challengeB64);
       challengeBytes = base64Url.decode(normalized);
     } catch (_) {
       throw PasskeyChallengeMismatch(

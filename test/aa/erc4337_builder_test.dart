@@ -178,6 +178,78 @@ void main() {
           contains('PasskeyChallengeMismatch'));
     });
 
+    // ── validateChallengeForTest: pure-Dart coverage of _validateChallenge ──
+    // These tests use the @visibleForTesting entry point to exercise the
+    // challenge-validation logic without requiring FFI (computeHash needs the
+    // native dylib to set _computedHash; these tests inject an arbitrary hash).
+
+    group('validateChallengeForTest — pure Dart', () {
+      final storedHash = Uint8List(32)
+        ..[0] = 0xAB
+        ..[1] = 0xCD;
+
+      test('correct base64url-no-pad challenge passes', () {
+        final b64 = base64Url.encode(storedHash).replaceAll('=', '');
+        expect(
+          () => Erc4337Builder.validateChallengeForTest(
+            '{"type":"webauthn.get","challenge":"$b64"}',
+            storedHash,
+          ),
+          returnsNormally,
+        );
+      });
+
+      test('correct base64url challenge with padding also passes', () {
+        final b64 = base64Url.encode(storedHash); // may include '='
+        expect(
+          () => Erc4337Builder.validateChallengeForTest(
+            '{"type":"webauthn.get","challenge":"$b64"}',
+            storedHash,
+          ),
+          returnsNormally,
+        );
+      });
+
+      test('wrong challenge bytes → PasskeyChallengeMismatch', () {
+        final wrongHash = Uint8List(32)..[0] = 0xFF;
+        final b64 = base64Url.encode(wrongHash).replaceAll('=', '');
+        expect(
+          () => Erc4337Builder.validateChallengeForTest(
+            '{"type":"webauthn.get","challenge":"$b64"}',
+            storedHash,
+          ),
+          throwsA(isA<PasskeyChallengeMismatch>()),
+        );
+      });
+
+      test('invalid JSON → PasskeyChallengeMismatch', () {
+        expect(
+          () => Erc4337Builder.validateChallengeForTest('not-json', storedHash),
+          throwsA(isA<PasskeyChallengeMismatch>()),
+        );
+      });
+
+      test('missing "challenge" field → PasskeyChallengeMismatch', () {
+        expect(
+          () => Erc4337Builder.validateChallengeForTest(
+            '{"type":"webauthn.get"}',
+            storedHash,
+          ),
+          throwsA(isA<PasskeyChallengeMismatch>()),
+        );
+      });
+
+      test('non-base64url "challenge" value → PasskeyChallengeMismatch', () {
+        expect(
+          () => Erc4337Builder.validateChallengeForTest(
+            '{"type":"webauthn.get","challenge":"!!!not-b64!!!"}',
+            storedHash,
+          ),
+          throwsA(isA<PasskeyChallengeMismatch>()),
+        );
+      });
+    });
+
     test('clientDataJSON with matching challenge passes validation', () {
       final b = _v06Builder();
       // Simulate a stored hash

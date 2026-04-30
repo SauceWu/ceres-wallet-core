@@ -23,11 +23,6 @@
 import 'dart:typed_data';
 
 import 'package:ceres_wallet_core/ceres_wallet_core.dart';
-// passkey_signature.dart, evm_signer.dart, secp256k1_signer.dart are `part of`
-// evm_signature.dart's anonymous library — import the library root to get
-// all symbols (EvmSignature, Secp256k1Signature, PasskeySignature, EvmSigner,
-// Secp256k1Signer). Deep-importing individual `part` files is a compile error.
-import 'package:ceres_wallet_core/src/aa/evm_signature.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fixtures/fixture_loader.dart';
@@ -108,6 +103,15 @@ void main() {
         expect(sig2, isA<Secp256k1Signature>());
         expect((sig1 as Secp256k1Signature).rsv,
             equals((sig2 as Secp256k1Signature).rsv));
+        // Verify _pending was cleared: sig2 must be a NEW instance — not the
+        // cached sig1 Future. If _pending were never cleared, identical(sig1, sig2)
+        // would be true and single-flight would never resolve fresh (D-20).
+        expect(
+          identical(sig1, sig2),
+          isFalse,
+          reason: 'Sequential calls must produce separate instances — '
+              '_pending must be cleared after first completion (D-20).',
+        );
       },
       skip: 'macOS host dylib unavailable — see TODO(P13)',
     );

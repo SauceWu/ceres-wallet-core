@@ -59,13 +59,17 @@ abstract class EvmSigner {
   /// SAME `EvmSignature` instance. If digests differ across concurrent
   /// callers, the second caller silently receives the first caller's
   /// result — see file-level doc block.
+  @nonVirtual
   Future<EvmSignature> signDigest(Uint8List digest32) {
-    assert(
-      digest32.length == 32,
-      'digest32 must be exactly 32 bytes (got ${digest32.length}). '
-      'See PITFALLS.md Pitfall 3: signDigest takes a raw 32-byte EVM '
-      'digest; do NOT prepend `\\x19Ethereum Signed Message:\\n32`.',
-    );
+    if (digest32.length != 32) {
+      throw ArgumentError.value(
+        digest32.length,
+        'digest32',
+        'digest32 must be exactly 32 bytes (got ${digest32.length}). '
+        'See PITFALLS.md Pitfall 3: signDigest takes a raw 32-byte EVM '
+        'digest; do NOT prepend `\\x19Ethereum Signed Message:\\n32`.',
+      );
+    }
     final inflight = _pending;
     if (inflight != null) return inflight;
     final fresh = _doSign(digest32).whenComplete(() => _pending = null);

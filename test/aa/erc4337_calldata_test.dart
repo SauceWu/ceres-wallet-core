@@ -12,7 +12,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ceres_wallet_core/ceres_wallet_core.dart';
-import 'package:ceres_wallet_core/src/aa/erc4337_calldata.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -113,14 +112,38 @@ void main() {
     test('throws ArgumentError for address shorter than 40 hex chars', () {
       expect(
         () => Erc4337Calldata.executeCall('0x1234', BigInt.zero, Uint8List(0)),
-        throwsA(isA<AssertionError>()),
+        throwsA(isA<ArgumentError>()),
       );
     });
 
-    test('throws AssertionError for negative value', () {
+    test('throws ArgumentError for address longer than 40 hex chars', () {
+      final longAddr = '0x${'a' * 50}';
+      expect(
+        () => Erc4337Calldata.executeCall(longAddr, BigInt.zero, Uint8List(0)),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for address with non-hex characters', () {
+      final badAddr = '0x${'G' * 40}';
+      expect(
+        () => Erc4337Calldata.executeCall(badAddr, BigInt.zero, Uint8List(0)),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for negative value', () {
       expect(
         () => Erc4337Calldata.executeCall(target, BigInt.from(-1), Uint8List(0)),
-        throwsA(isA<AssertionError>()),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('throws ArgumentError for value overflowing uint256', () {
+      final overflow = BigInt.two.pow(256);
+      expect(
+        () => Erc4337Calldata.executeCall(target, overflow, Uint8List(0)),
+        throwsA(isA<ArgumentError>()),
       );
     });
   });
@@ -148,13 +171,7 @@ void main() {
     );
   });
 
-  group('selector constants are private', () {
-    test('Erc4337Calldata has no public selector field', () {
-      // This is a static/compile-time guarantee — just document it.
-      // The class only exposes executeCall and executeBatch.
-      // If this test compiles without referencing any selector constant,
-      // the private constraint is implicitly enforced.
-      expect(Erc4337Calldata, isNotNull);
-    });
-  });
+  // Selector privacy is a compile-time guarantee enforced by Dart's field
+  // visibility rules. No runtime test is needed or possible — the absence of
+  // any public reference to selector constants in this file is the invariant.
 }

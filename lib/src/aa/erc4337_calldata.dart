@@ -112,30 +112,53 @@ class Erc4337Calldata {
   // ── Private helpers ──────────────────────────────────────────────────────
 
   /// Parse a 0x-prefixed 40-hex-char Ethereum address into 20 bytes.
+  ///
+  /// Throws [ArgumentError] in all build modes (debug, profile, release) if:
+  /// - the hex body is not exactly 40 characters, or
+  /// - any character is not a valid hex digit.
   static Uint8List _hexAddressToBytes(String address) {
     var s = address;
     if (s.startsWith('0x') || s.startsWith('0X')) s = s.substring(2);
-    assert(
-      s.length == 40,
-      'Ethereum address must be 40 hex chars (got ${s.length}): $address',
-    );
+    if (s.length != 40) {
+      throw ArgumentError.value(
+        address,
+        'address',
+        'Ethereum address must be 40 hex chars after 0x prefix (got ${s.length})',
+      );
+    }
     final out = Uint8List(20);
     for (var i = 0; i < 20; i++) {
-      out[i] = int.parse(s.substring(i * 2, i * 2 + 2), radix: 16);
+      final byte = int.tryParse(s.substring(i * 2, i * 2 + 2), radix: 16);
+      if (byte == null) {
+        throw ArgumentError.value(
+          address,
+          'address',
+          'Invalid hex character at position ${i * 2}: "${s.substring(i * 2, i * 2 + 2)}"',
+        );
+      }
+      out[i] = byte;
     }
     return out;
   }
 
   /// Encode a non-negative [BigInt] as a big-endian 32-byte uint256 buffer.
+  ///
+  /// Throws [ArgumentError] in all build modes if [v] is negative or overflows
+  /// uint256. Using `assert` here is insufficient — asserts are removed in
+  /// release builds, allowing negative values to silently encode as 0xFF…FF.
   static Uint8List _bigIntToUint256(BigInt v) {
-    assert(v >= BigInt.zero, 'value must be non-negative (got $v)');
+    if (v < BigInt.zero) {
+      throw ArgumentError.value(v, 'value', 'value must be non-negative');
+    }
     final out = Uint8List(32);
     var rem = v;
     for (var i = 31; i >= 0; i--) {
       out[i] = (rem & BigInt.from(0xff)).toInt();
       rem >>= 8;
     }
-    assert(rem == BigInt.zero, 'value overflows uint256: $v');
+    if (rem != BigInt.zero) {
+      throw ArgumentError.value(v, 'value', 'value overflows uint256');
+    }
     return out;
   }
 }

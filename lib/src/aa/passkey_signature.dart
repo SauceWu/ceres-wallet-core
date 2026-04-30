@@ -36,12 +36,15 @@ final class PasskeySignature extends EvmSignature {
   /// The 200-byte minimum hard-rejects the 64-byte `r‖s` mistake at
   /// construction time (PITFALLS.md Pitfall 1).
   factory PasskeySignature.fromBarzFormatted(Uint8List blob) {
-    assert(
-      blob.length >= 200,
-      'PasskeySignature blob must be Barz-formatted (>=200 bytes); '
-      'got ${blob.length}. A 64-byte r||s buffer is NOT a valid passkey '
-      'signature — see PITFALLS.md Pitfall 1.',
-    );
+    if (blob.length < 200) {
+      throw ArgumentError.value(
+        blob.length,
+        'blob',
+        'PasskeySignature blob must be Barz-formatted (>=200 bytes); '
+        'got ${blob.length}. A 64-byte r||s buffer is NOT a valid passkey '
+        'signature — see PITFALLS.md Pitfall 1.',
+      );
+    }
     return PasskeySignature._(Uint8List.fromList(blob));
   }
 

@@ -73,15 +73,15 @@ class PasskeySigner extends EvmSigner {
 
     // Pitfall 3 prevention (first-line defence): the adapter must embed the
     // exact digest32 bytes as the challenge inside PasskeyAssertion.challenge.
-    // A buggy or hijacked adapter returning a stale / different challenge is
-    // caught here in debug builds before the signature is even formatted.
-    // Release builds rely on the secondary check in Erc4337Builder.attachSignature.
-    assert(
-      _bytesEqual(assertion.challenge, digest32),
-      'PasskeyAdapter returned an assertion whose challenge does not match the '
-      'digest32 that was sent (Pitfall 3). The adapter must write the challenge '
-      'argument verbatim into PasskeyAssertion.challenge.',
-    );
+    // Enforced in all build modes — a buggy or hijacked adapter returning a
+    // stale / different challenge is rejected here before the signature is formatted.
+    if (!_bytesEqual(assertion.challenge, digest32)) {
+      throw StateError(
+        'PasskeyAdapter returned an assertion whose challenge does not match the '
+        'digest32 that was sent (Pitfall 3). The adapter must write the challenge '
+        'argument verbatim into PasskeyAssertion.challenge.',
+      );
+    }
 
     // TWBarz.getFormattedSignature converts ASN.1-DER (r, s) + authenticator
     // data + clientDataJSON into the Barz-specific ABI-encoded blob.
